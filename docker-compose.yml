@@ -1,0 +1,61 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-scanner}
+      POSTGRES_USER: ${POSTGRES_USER:-scanner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scanner}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-scanner} -d ${POSTGRES_DB:-scanner}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      APP_NAME: KOSPI Swing Scanner
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-scanner}:${POSTGRES_PASSWORD:-scanner}@db:5432/${POSTGRES_DB:-scanner}
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-scanner_session}
+      SESSION_DAYS: ${SESSION_DAYS:-30}
+      DATA_PROVIDER: ${DATA_PROVIDER:-mock}
+      KIS_BASE_URL: ${KIS_BASE_URL:-https://openapi.koreainvestment.com:9443}
+      KIS_APP_KEY: ${KIS_APP_KEY:-}
+      KIS_APP_SECRET: ${KIS_APP_SECRET:-}
+      KIS_ACCOUNT_NO: ${KIS_ACCOUNT_NO:-}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-false}
+      SCHEDULER_TIMEZONE: ${SCHEDULER_TIMEZONE:-Asia/Seoul}
+      SCHEDULER_EOD_HOUR: ${SCHEDULER_EOD_HOUR:-16}
+      SCHEDULER_EOD_MINUTE: ${SCHEDULER_EOD_MINUTE:-10}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+    environment:
+      BACKEND_ORIGIN: http://api:8000
+    depends_on:
+      - api
+
+  proxy:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - '${PROXY_PORT:-8080}:80'
+    depends_on:
+      - web
+      - api
+
+volumes:
+  postgres_data:
