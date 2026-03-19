@@ -14,5 +14,9 @@ def get_market_data_provider() -> MarketDataProvider:
             app_key=settings.kis_app_key,
             app_secret=settings.kis_app_secret,
             base_url=settings.kis_base_url,
+            timeout_sec=settings.kis_request_timeout_sec,
+            request_interval_ms=settings.kis_request_interval_ms,
+            universe_limit=settings.kis_universe_limit,
+            universe_cache_hours=settings.kis_universe_cache_hours,
         )
     return MockMarketDataProvider()

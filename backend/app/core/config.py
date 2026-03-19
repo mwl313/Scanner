@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     kis_app_key: str | None = None
     kis_app_secret: str | None = None
     kis_account_no: str | None = None
+    kis_request_timeout_sec: float = 10.0
+    kis_request_interval_ms: int = 80
+    kis_universe_limit: int = 120
+    kis_universe_cache_hours: int = 24
 
     scheduler_enabled: bool = False
     scheduler_timezone: str = 'Asia/Seoul'

@@ -289,7 +289,11 @@ def list_scan_results(
     )
 
     if grade:
-        stmt = stmt.where(ScanResult.grade == grade)
+        normalized_grade = grade.upper()
+        if normalized_grade == 'AB':
+            stmt = stmt.where(ScanResult.grade.in_(['A', 'B']))
+        else:
+            stmt = stmt.where(ScanResult.grade == normalized_grade)
 
     if watchlist_only:
         stmt = stmt.join(

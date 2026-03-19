@@ -5,6 +5,27 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRequireAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
 
+const MANDATORY_FAIL_PATTERNS = [
+  'RSI 상향 돌파',
+  'MA20 기준 과도한 이탈',
+  '거래대금 기준 미달',
+  '시장 필터 미충족',
+  '시가총액 조건 미충족',
+];
+
+function compactReason(reason) {
+  if (!reason) return '';
+  if (reason.includes('RSI(14) vs RSI signal 상향 돌파')) return 'RSI 상향돌파';
+  if (reason.includes('RSI가 목표 구간')) return 'RSI 목표구간';
+  if (reason.includes('볼린저 하단 근접')) return '볼밴 하단근접';
+  if (reason.includes('가격이 MA20 위')) return 'MA20 위';
+  if (reason.includes('가격이 MA20 근처')) return 'MA20 근접';
+  if (reason.includes('MA5가 MA20 위')) return 'MA5>MA20';
+  if (reason.includes('외국인 최근')) return '외인 순매수';
+  if (reason.includes('거래대금 기준 통과')) return '거래대금 통과';
+  return reason;
+}
+
 function maStatus(item) {
   const aboveMa20 = Number(item.price) >= Number(item.ma20);
   const ma5Above20 = Number(item.ma5) >= Number(item.ma20);
@@ -21,7 +42,7 @@ export default function ScansPage() {
   const [selectedStrategyId, setSelectedStrategyId] = useState('');
   const [selectedRunId, setSelectedRunId] = useState('');
   const [results, setResults] = useState([]);
-  const [gradeFilter, setGradeFilter] = useState('');
+  const [gradeFilter, setGradeFilter] = useState('AB');
   const [sortBy, setSortBy] = useState('score');
   const [sortOrder, setSortOrder] = useState('desc');
   const [error, setError] = useState('');
@@ -52,7 +73,7 @@ export default function ScansPage() {
     });
     if (gradeFilter) query.set('grade', gradeFilter);
     const data = await apiRequest(`/api/scans/${selectedRunId}/results?${query.toString()}`);
-    setResults(data);
+    setResults(data || []);
   };
 
   useEffect(() => {
@@ -149,10 +170,11 @@ export default function ScansPage() {
           <div>
             <label>등급 필터</label>
             <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
-              <option value="">전체</option>
+              <option value="AB">A/B (기본)</option>
               <option value="A">A</option>
               <option value="B">B</option>
               <option value="C">C</option>
+              <option value="">전체</option>
               <option value="EXCLUDED">EXCLUDED</option>
             </select>
           </div>
@@ -192,6 +214,7 @@ export default function ScansPage() {
                 <th>거래대금</th>
                 <th>점수</th>
                 <th>등급</th>
+                <th>필수조건</th>
                 <th className="reason-col">통과 이유</th>
                 <th>액션</th>
               </tr>
@@ -199,6 +222,10 @@ export default function ScansPage() {
             <tbody>
               {results.map((item) => {
                 const bbDistance = ((Number(item.price) - Number(item.bb_lower)) / Number(item.bb_lower)) * 100;
+                const mandatoryFailed = (item.failed_reasons_json || []).some((reason) =>
+                  MANDATORY_FAIL_PATTERNS.some((pattern) => reason.includes(pattern))
+                );
+                const keyReasons = (item.matched_reasons_json || []).slice(0, 4).map(compactReason);
                 return (
                   <tr key={item.id}>
                     <td>{item.stock_name}</td>
@@ -212,7 +239,12 @@ export default function ScansPage() {
                     <td>{Number(item.trading_value).toLocaleString()}</td>
                     <td>{item.score}</td>
                     <td><span className={`badge ${item.grade}`}>{item.grade}</span></td>
-                    <td className="reason-col">{(item.matched_reasons_json || []).slice(0, 3).join(', ')}</td>
+                    <td>
+                      <span className={`badge ${mandatoryFailed ? 'EXCLUDED' : 'A'}`}>
+                        {mandatoryFailed ? '미충족' : '통과'}
+                      </span>
+                    </td>
+                    <td className="reason-col">{keyReasons.join(' · ')}</td>
                     <td>
                       <Link href={`/stocks/${item.stock_code}`}>상세</Link>
                     </td>

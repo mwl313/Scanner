@@ -65,8 +65,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="card">
-        <h3>비활성화 기능 안내</h3>
-        <p className="helper">현재 버전에서는 관심종목/매매일지 기능을 임시 비활성화했습니다.</p>
+        <h3>스캐너 코어 흐름</h3>
+        <p className="helper">전략 설정 → 스캔 실행 → 결과 검토 → 대시보드 복기로 운영하는 scanner-first 버전입니다.</p>
       </div>
     </div>
   );

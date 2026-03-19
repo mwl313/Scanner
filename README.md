@@ -1,16 +1,19 @@
-# KOSPI Swing Scanner MVP
+# KOSPI Swing Scanner MVP (Scanner-First)
 
 `doc/stock_scanner_mvp_detailed_ko.md`를 source of truth로 구현한 MVP입니다.
+이번 단계에서는 제품 중심을 **스캐너 코어**(전략 → 스캔 → 결과 → 대시보드)로 재정렬했습니다.
 
-## 구현 범위
+## 핵심 범위
 - 인증: 회원가입/로그인/로그아웃/현재 사용자
 - 전략 관리: 생성/수정/삭제/복제/목록/상세
 - 스캔 엔진: KOSPI 대상, 지표 계산, 조건 평가, 점수/등급, 결과 저장
-- 스캔 결과 화면: 정렬/필터/이유 표시
-- 관심종목: 추가/제거/목록
-- 매매일지: CRUD + 수익/수익률 자동 계산
-- 대시보드: 오늘 요약/A등급/전략별 최근 결과/관심종목 변화/최근 일지
+- 스캔 결과: 정렬/필터(A/B 기본)/핵심 이유 표시
+- 대시보드: 오늘 스캔 요약 + 전략별 최근 결과
 - Provider abstraction: `MarketDataProvider` + `MockMarketDataProvider` + `KisMarketDataProvider`
+
+## 이번 단계 스코프 정리
+- watchlist / journal 기능은 핵심 플로우에서 제외했습니다.
+- 기존 라우트/테이블은 호환성 때문에 유지하되, 메인 네비게이션과 핵심 카피에서는 비노출/비강조 처리했습니다.
 
 ## 기술 스택
 - Frontend: Next.js App Router
@@ -95,24 +98,48 @@ pytest
 - 세션 만료: 기본 30일
 - 로그아웃 시 세션/쿠키 삭제
 
-## Provider 교체
-- 기본: `DATA_PROVIDER=mock`
-- KIS 사용: `DATA_PROVIDER=kis` + `KIS_APP_KEY`, `KIS_APP_SECRET` 설정
+## 데이터 Provider
+### Mock (개발 기본)
+- `DATA_PROVIDER=mock`
+- API 키 없이 전체 플로우 테스트 가능
 
-현재 `KisMarketDataProvider`는 인터페이스/뼈대만 제공하며, 실제 KIS 엔드포인트 매핑은 운영 확장 단계에서 추가하도록 분리했습니다.
+### KIS (실데이터)
+- `DATA_PROVIDER=kis`
+- 필수: `KIS_APP_KEY`, `KIS_APP_SECRET`
+- 선택: `KIS_BASE_URL`, `KIS_REQUEST_TIMEOUT_SEC`, `KIS_REQUEST_INTERVAL_MS`, `KIS_UNIVERSE_LIMIT`, `KIS_UNIVERSE_CACHE_HOURS`
+
+`KisMarketDataProvider` 구현 범위:
+- `list_stocks(market)`
+- `get_daily_bars(stock_code, days)`
+- `get_latest_quote(stock_code)`
+- `get_foreign_net_buy_aggregate(stock_code, days)`
+
+### 현재 KIS 유니버스 정의
+- 소스: KIS `kospi_code.mst.zip` 마스터 파일
+- 필터:
+  - KOSPI 표기 종목
+  - ETP/ELW/SPAC 제외
+  - 거래정지/정리매매/관리종목 제외
+- 정렬: 시가총액 내림차순
+- 스캔 대상: 상위 `KIS_UNIVERSE_LIMIT`개 (기본 120)
+
+## 스캔 결과 UX
+- 기본 등급 필터: `A/B`
+- `EXCLUDED`는 명시적으로 선택했을 때 조회
+- 결과 행에 `필수조건 통과/미충족` 상태 표시
+- 통과 이유는 2~4개 핵심 라벨로 축약 표시
 
 ## 합리적 가정(문서 모호점 처리)
 1. RSI 교차 타이밍: 당일 교차 또는 직전 1봉 교차(현재도 시그널 위)까지 허용.
 2. MA20 근처 기준: MA20 대비 2% 이내 하회까지 `근처`로 인정.
 3. 볼린저 하단 근접: 하단선과의 거리 3% 이내를 근접으로 정의.
-4. 결과 저장: 필수조건 탈락 종목도 `EXCLUDED`로 저장해 상세/복기 가능하도록 처리.
-5. 알림: DB 테이블은 구현했지만 MVP API/화면 범위에는 포함하지 않음.
-6. 장중 스캔: `scan_interval_type` 구조(`intraday_5m`, `intraday_10m`)는 열어두고, 실제 주기 실행은 EOD 스케줄 우선.
+4. 결과 저장: 필수조건 탈락 종목도 `EXCLUDED`로 저장해 복기 가능하도록 처리.
+5. KIS 유니버스는 전종목 완전탐색보다 안정 실행 가능한 상위 N개 스캔을 우선.
 
 ## 운영 메모 (Mac mini self-hosted)
 - 운영에서는 `APP_ENV=production` + HTTPS 종단(TLS) 구성 필요
 - `Secure` 쿠키는 HTTPS에서만 전달됨
-- nginx 앞단에서 SSL 인증서 자동 갱신(예: certbot) 구성 권장
+- nginx 앞단 SSL 인증서 자동 갱신(예: certbot) 구성 권장
 - DB 정기 백업 스케줄 별도 구성 권장
 
 ## 주요 API
@@ -120,6 +147,4 @@ pytest
 - Strategies: `/api/strategies`
 - Scans: `/api/scans/run`, `/api/scans`, `/api/scans/{id}`, `/api/scans/{id}/results`
 - Stocks: `/api/stocks/{code}`, `/api/stocks/{code}/indicators`, `/api/stocks/{code}/reasons`
-- Watchlist: `/api/watchlist`
-- Journals: `/api/journals`
 - Dashboard: `/api/dashboard/summary`

@@ -1,0 +1,136 @@
+from datetime import date
+
+from app.providers.base import DailyBar, StockMeta
+from app.providers.kis_provider import KisMarketDataProvider
+
+
+def make_provider() -> KisMarketDataProvider:
+    return KisMarketDataProvider(
+        app_key='dummy-key',
+        app_secret='dummy-secret',
+        base_url='https://openapi.koreainvestment.com:9443',
+        request_interval_ms=0,
+    )
+
+
+def test_list_stocks_uses_cache(monkeypatch):
+    provider = make_provider()
+    calls = {'count': 0}
+
+    def fake_download():
+        calls['count'] += 1
+        return [StockMeta(code='005930', name='삼성전자', market='KOSPI', market_cap=300000000000000)]
+
+    monkeypatch.setattr(provider, '_download_kospi_universe', fake_download)
+
+    first = provider.list_stocks('KOSPI')
+    second = provider.list_stocks('KOSPI')
+    other_market = provider.list_stocks('KOSDAQ')
+
+    assert len(first) == 1
+    assert len(second) == 1
+    assert calls['count'] == 1
+    assert other_market == []
+
+    provider._client.close()
+
+
+def test_get_daily_bars_returns_sorted_recent_rows(monkeypatch):
+    provider = make_provider()
+
+    def fake_request_json(method, path, tr_id, params=None, retry_on_unauthorized=True):
+        _ = method, path, tr_id, params, retry_on_unauthorized
+        return {
+            'output2': [
+                {
+                    'stck_bsop_date': '20260318',
+                    'stck_oprc': '10000',
+                    'stck_hgpr': '10200',
+                    'stck_lwpr': '9900',
+                    'stck_clpr': '10100',
+                    'acml_vol': '100000',
+                    'acml_tr_pbmn': '1010000000',
+                },
+                {
+                    'stck_bsop_date': '20260317',
+                    'stck_oprc': '9900',
+                    'stck_hgpr': '10100',
+                    'stck_lwpr': '9800',
+                    'stck_clpr': '10000',
+                    'acml_vol': '80000',
+                    'acml_tr_pbmn': '800000000',
+                },
+                {
+                    'stck_bsop_date': '20260319',
+                    'stck_oprc': '10100',
+                    'stck_hgpr': '10300',
+                    'stck_lwpr': '10000',
+                    'stck_clpr': '10200',
+                    'acml_vol': '120000',
+                    'acml_tr_pbmn': '1200000000',
+                },
+            ]
+        }
+
+    monkeypatch.setattr(provider, '_request_json', fake_request_json)
+
+    bars = provider.get_daily_bars('005930', 2)
+
+    assert len(bars) == 2
+    assert bars[0].trade_date == date(2026, 3, 18)
+    assert bars[1].trade_date == date(2026, 3, 19)
+    assert bars[1].close_price == 10200
+
+    provider._client.close()
+
+
+def test_get_latest_quote_falls_back_to_daily_bar(monkeypatch):
+    provider = make_provider()
+
+    def fake_quote(*_args, **_kwargs):
+        return {'output': {'stck_prpr': '0', 'acml_tr_pbmn': '0'}}
+
+    monkeypatch.setattr(provider, '_request_json', fake_quote)
+    monkeypatch.setattr(
+        provider,
+        'get_daily_bars',
+        lambda stock_code, days: [
+            DailyBar(
+                trade_date=date(2026, 3, 19),
+                open_price=10000,
+                high_price=10300,
+                low_price=9900,
+                close_price=10200,
+                volume=100000,
+                trading_value=1200000000,
+            )
+        ],
+    )
+
+    quote = provider.get_latest_quote('005930')
+
+    assert quote.price == 10200
+    assert quote.trading_value == 1200000000
+
+    provider._client.close()
+
+
+def test_get_foreign_net_buy_aggregate_uses_recent_days(monkeypatch):
+    provider = make_provider()
+
+    def fake_investor_daily(*_args, **_kwargs):
+        return {
+            'output2': [
+                {'stck_bsop_date': '20260317', 'frgn_ntby_tr_pbmn': '100'},
+                {'stck_bsop_date': '20260319', 'frgn_ntby_tr_pbmn': '300'},
+                {'stck_bsop_date': '20260318', 'frgn_ntby_tr_pbmn': '-200'},
+            ]
+        }
+
+    monkeypatch.setattr(provider, '_request_json', fake_investor_daily)
+
+    aggregated = provider.get_foreign_net_buy_aggregate('005930', 2)
+
+    assert aggregated == 100
+
+    provider._client.close()
