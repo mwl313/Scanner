@@ -9,8 +9,6 @@ const links = [
   { href: '/dashboard', label: '대시보드' },
   { href: '/strategies', label: '전략' },
   { href: '/scans', label: '스캔결과' },
-  { href: '/watchlist', label: '관심종목' },
-  { href: '/journals', label: '매매일지' },
 ];
 
 export default function Nav() {

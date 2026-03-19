@@ -24,7 +24,6 @@ export default function ScansPage() {
   const [gradeFilter, setGradeFilter] = useState('');
   const [sortBy, setSortBy] = useState('score');
   const [sortOrder, setSortOrder] = useState('desc');
-  const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [error, setError] = useState('');
 
   const loadBase = async () => {
@@ -50,7 +49,6 @@ export default function ScansPage() {
     const query = new URLSearchParams({
       sort_by: sortBy,
       sort_order: sortOrder,
-      watchlist_only: String(watchlistOnly),
     });
     if (gradeFilter) query.set('grade', gradeFilter);
     const data = await apiRequest(`/api/scans/${selectedRunId}/results?${query.toString()}`);
@@ -67,7 +65,7 @@ export default function ScansPage() {
     if (!loading) {
       loadResults().catch((err) => setError(err.message));
     }
-  }, [loading, selectedRunId, gradeFilter, sortBy, sortOrder, watchlistOnly]);
+  }, [loading, selectedRunId, gradeFilter, sortBy, sortOrder]);
 
   const runScanNow = async () => {
     setError('');
@@ -76,22 +74,6 @@ export default function ScansPage() {
       body: JSON.stringify({ strategy_id: Number(selectedStrategyId), run_type: 'manual' }),
     });
     await loadBase();
-  };
-
-  const addWatch = async (item) => {
-    try {
-      await apiRequest('/api/watchlist', {
-        method: 'POST',
-        body: JSON.stringify({
-          stock_code: item.stock_code,
-          stock_name: item.stock_name,
-          strategy_id: item.strategy_id,
-        }),
-      });
-      alert('관심종목 추가됨');
-    } catch (err) {
-      alert(err.message);
-    }
   };
 
   const runMap = useMemo(() => {
@@ -191,16 +173,12 @@ export default function ScansPage() {
               <option value="asc">오름차순</option>
             </select>
           </div>
-          <label>
-            <input type="checkbox" checked={watchlistOnly} onChange={(e) => setWatchlistOnly(e.target.checked)} />
-            {' '}관심종목만
-          </label>
         </div>
 
         {error && <p className="error">{error}</p>}
 
         <div className="table-wrap" style={{ marginTop: 10 }}>
-          <table>
+          <table className="scan-result-table">
             <thead>
               <tr>
                 <th>종목명</th>
@@ -214,7 +192,7 @@ export default function ScansPage() {
                 <th>거래대금</th>
                 <th>점수</th>
                 <th>등급</th>
-                <th>통과 이유</th>
+                <th className="reason-col">통과 이유</th>
                 <th>액션</th>
               </tr>
             </thead>
@@ -234,12 +212,9 @@ export default function ScansPage() {
                     <td>{Number(item.trading_value).toLocaleString()}</td>
                     <td>{item.score}</td>
                     <td><span className={`badge ${item.grade}`}>{item.grade}</span></td>
-                    <td>{(item.matched_reasons_json || []).slice(0, 3).join(', ')}</td>
+                    <td className="reason-col">{(item.matched_reasons_json || []).slice(0, 3).join(', ')}</td>
                     <td>
-                      <div className="row">
-                        <Link href={`/stocks/${item.stock_code}`}>상세</Link>
-                        <button className="secondary" onClick={() => addWatch(item)}>관심</button>
-                      </div>
+                      <Link href={`/stocks/${item.stock_code}`}>상세</Link>
                     </td>
                   </tr>
                 );

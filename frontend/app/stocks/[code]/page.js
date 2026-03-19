@@ -1,23 +1,21 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useRequireAuth } from '../../../lib/auth';
 import { apiRequest } from '../../../lib/api';
 
 export default function StockDetailPage() {
   const { loading } = useRequireAuth();
   const params = useParams();
-  const router = useRouter();
   const [detail, setDetail] = useState(null);
 
   useEffect(() => {
     if (!loading && params.code) {
       apiRequest(`/api/stocks/${params.code}`)
-        .then(setDetail)
-        .catch(() => router.push('/scans'));
+        .then(setDetail);
     }
-  }, [loading, params.code, router]);
+  }, [loading, params.code]);
 
   if (loading || !detail) return <p>로딩중...</p>;
 
@@ -82,24 +80,6 @@ export default function StockDetailPage() {
             {detail.failed_reasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
           </ul>
         </div>
-      </div>
-
-      <div className="row">
-        <button onClick={async () => {
-          await apiRequest('/api/watchlist', {
-            method: 'POST',
-            body: JSON.stringify({
-              stock_code: detail.stock_code,
-              stock_name: detail.stock_name,
-              strategy_id: detail.strategy_id,
-            }),
-          });
-          alert('관심종목 추가');
-        }}>
-          관심종목 추가
-        </button>
-
-        <button className="secondary" onClick={() => router.push('/journals')}>매매일지 이동</button>
       </div>
     </div>
   );

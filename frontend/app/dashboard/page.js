@@ -64,20 +64,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid-2">
-        <div className="card">
-          <h3>관심종목 변화</h3>
-          <p>최근 7일 신규 추가: {summary.watchlist_added_7d}개</p>
-        </div>
-        <div className="card">
-          <h3>최근 매매일지</h3>
-          {summary.recent_journals.map((j) => (
-            <div key={j.id} className="row" style={{ justifyContent: 'space-between', borderBottom: '1px solid #eee', padding: '6px 0' }}>
-              <span>{j.trade_date} / {j.stock_name}</span>
-              <span>{Number(j.profit_value).toLocaleString()} ({(Number(j.profit_rate) * 100).toFixed(2)}%)</span>
-            </div>
-          ))}
-        </div>
+      <div className="card">
+        <h3>비활성화 기능 안내</h3>
+        <p className="helper">현재 버전에서는 관심종목/매매일지 기능을 임시 비활성화했습니다.</p>
       </div>
     </div>
   );

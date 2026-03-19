@@ -131,6 +131,17 @@ td {
   font-size: 14px;
 }
 
+.scan-result-table th,
+.scan-result-table td {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.scan-result-table .reason-col {
+  white-space: normal;
+  min-width: 300px;
+}
+
 .badge {
   display: inline-block;
   padding: 3px 8px;
