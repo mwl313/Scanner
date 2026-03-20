@@ -19,7 +19,7 @@ export default function StockDetailPage() {
 
   if (loading || !detail) return <p>로딩중...</p>;
   const foreignStatusLabel = detail.foreign_data_status === 'confirmed'
-    ? '확정'
+    ? ((detail.foreign_data_source || '').includes('krx_confirmed_daily') ? '확정(KRX)' : '확정')
     : (detail.foreign_net_buy_snapshot_value == null ? '없음' : '미확정(스냅샷)');
 
   return (

@@ -101,7 +101,9 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
     foreign_snapshot_value = foreign_data.get('snapshot_value')
     foreign_status = str(foreign_data.get('status') or 'unavailable')
     foreign_source = str(foreign_data.get('source') or 'unknown')
+    foreign_confirmed_row_source = foreign_data.get('confirmed_row_source')
     foreign_snapshot_source = str(foreign_data.get('snapshot_source') or 'unknown')
+    confirmed_source_label = str(foreign_confirmed_row_source or foreign_source)
     foreign_net_buy_positive = (foreign_confirmed_value is not None) and (foreign_confirmed_value > 0)
 
     trading_value_pass = latest_trading_value >= strategy.min_trading_value
@@ -194,7 +196,7 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
         'foreign_net_buy_confirmed_value': (int(foreign_confirmed_value) if foreign_confirmed_value is not None else None),
         'foreign_net_buy_snapshot_value': (int(foreign_snapshot_value) if foreign_snapshot_value is not None else None),
         'foreign_data_status': foreign_status,
-        'foreign_data_source': f'{foreign_source}|{foreign_snapshot_source}',
+        'foreign_data_source': f'confirmed:{confirmed_source_label}|snapshot:{foreign_snapshot_source}',
         'trading_value': latest_trading_value,
         'score': int(score),
         'grade': grade,

@@ -13,6 +13,10 @@ from app.providers import (
     MarketDataProvider,
     get_market_data_provider,
 )
+from app.services.confirmed_foreign_source import (
+    ConfirmedForeignInvestorSource,
+    resolve_confirmed_foreign_source,
+)
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -66,10 +70,12 @@ def sync_confirmed_foreign_for_stock(
     start_date,
     end_date,
     *,
+    confirmed_source: ConfirmedForeignInvestorSource | None = None,
     commit: bool = False,
 ) -> int:
+    source = confirmed_source or resolve_confirmed_foreign_source(provider)
     try:
-        rows = provider.get_foreign_investor_daily_confirmed(stock_code, start_date, end_date)
+        rows = source.fetch_daily_confirmed(stock_code, start_date, end_date)
     except Exception as exc:
         logger.warning('Failed to sync confirmed foreign investor rows for %s: %s', stock_code, exc)
         return 0
@@ -121,12 +127,23 @@ def get_foreign_investor_context(
     sync_confirmed_foreign_for_stock(db, provider, stock_code, sync_start, today, commit=False)
 
     confirmed_value, status, source = get_recent_confirmed_foreign_aggregate(db, stock_code, days)
+    confirmed_row_source: str | None = None
+    if status == 'confirmed':
+        latest_source_row = db.scalar(
+            select(ForeignInvestorDaily.source)
+            .where(ForeignInvestorDaily.stock_code == stock_code, ForeignInvestorDaily.is_confirmed.is_(True))
+            .order_by(desc(ForeignInvestorDaily.trade_date))
+            .limit(1)
+        )
+        if latest_source_row:
+            confirmed_row_source = str(latest_source_row)
 
     return {
         'confirmed_aggregate_value': confirmed_value,
         'snapshot_value': snapshot_value,
         'status': status,
         'source': source,
+        'confirmed_row_source': confirmed_row_source,
         'snapshot_source': snapshot_source,
     }
 
@@ -138,6 +155,7 @@ def sync_confirmed_foreign_for_market(
     stock_limit: int | None = None,
 ) -> tuple[int, int]:
     provider = get_market_data_provider()
+    confirmed_source = resolve_confirmed_foreign_source(provider)
     stocks = provider.list_stocks(market)
     if stock_limit is not None and stock_limit > 0:
         stocks = stocks[:stock_limit]
@@ -149,5 +167,13 @@ def sync_confirmed_foreign_for_market(
     saved = 0
     for stock in stocks:
         scanned += 1
-        saved += sync_confirmed_foreign_for_stock(db, provider, stock.code, start_date, today, commit=True)
+        saved += sync_confirmed_foreign_for_stock(
+            db,
+            provider,
+            stock.code,
+            start_date,
+            today,
+            confirmed_source=confirmed_source,
+            commit=True,
+        )
     return scanned, saved

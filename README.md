@@ -113,16 +113,23 @@ pytest
 - `get_daily_bars(stock_code, days)`
 - `get_latest_quote(stock_code)`
 - `get_foreign_investor_intraday_snapshot(stock_code)`
-- `get_foreign_investor_daily_confirmed(stock_code, start_date, end_date)`
+- `get_foreign_investor_daily_confirmed(...)` (provider 호환용; 스코어링 경로는 KRX 확정 데이터 사용)
+
+### 확정 외인 소스 선택
+- `FOREIGN_CONFIRMED_SOURCE=auto|krx|provider` (기본: `auto`)
+- `auto` 동작:
+  - `DATA_PROVIDER=mock` -> mock provider 확정 데이터 사용
+  - `DATA_PROVIDER=kis` -> KRX 확정 데이터 사용
+- KRX 설정: `KRX_BASE_URL`, `KRX_REQUEST_TIMEOUT_SEC`
 
 ## 외인 데이터 모델 (Option A)
 외국인 데이터는 2개 계층으로 분리합니다.
 
-1. 장중 스냅샷 (`intraday snapshot`)
+1. 장중 스냅샷 (`intraday snapshot`, KIS)
 - 용도: 화면 정보성 표시(대시보드/종목 상세)
 - 특징: 시점 데이터, 미확정
 
-2. 일별 확정 데이터 (`daily confirmed`)
+2. 일별 확정 데이터 (`daily confirmed`, KRX)
 - 용도: 스캐너 점수/조건 평가의 기준 데이터
 - 저장: `foreign_investor_daily` 테이블 (중복 안전: `stock_code + trade_date` unique)
 
@@ -131,6 +138,12 @@ pytest
 - 금액값이 없으면 `None`/unavailable로 처리 (수량 대체 금지)
 - 스코어링은 **확정 데이터**만 사용
 - 확정 데이터가 없으면 외인 조건은 **중립 처리** (스냅샷으로 점수 대체 금지)
+
+### EOD 동기화 플로우
+1. 스케줄러가 EOD 시각에 실행
+2. KRX 확정 외인 데이터 동기화 (`foreign_investor_daily` upsert)
+3. 활성 전략 EOD 스캔 실행
+4. 스캔 점수는 DB의 확정 외인 집계를 사용
 
 ### 현재 KIS 유니버스 정의
 - 소스: KIS `kospi_code.mst.zip` 마스터 파일
@@ -154,7 +167,7 @@ pytest
 3. 볼린저 하단 근접: 하단선과의 거리 3% 이내를 근접으로 정의.
 4. 결과 저장: 필수조건 탈락 종목도 `EXCLUDED`로 저장해 복기 가능하도록 처리.
 5. KIS 유니버스는 전종목 완전탐색보다 안정 실행 가능한 상위 N개 스캔을 우선.
-6. KIS 일별 외인 데이터 API 제한/미제공 시 스코어링은 외인 항목을 중립 처리하고 스냅샷은 정보 표시용으로만 사용.
+6. 외인 확정 데이터는 KRX 기준으로 동기화하며, 실패 시 스코어링은 외인 항목을 중립 처리하고 KIS 스냅샷은 정보 표시용으로만 사용.
 
 ## 운영 메모 (Mac mini self-hosted)
 - 운영에서는 `APP_ENV=production` + HTTPS 종단(TLS) 구성 필요

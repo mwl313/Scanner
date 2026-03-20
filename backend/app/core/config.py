@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     kis_request_interval_ms: int = 80
     kis_universe_limit: int = 120
     kis_universe_cache_hours: int = 24
+    foreign_confirmed_source: str = 'auto'  # auto | krx | provider
+    krx_base_url: str = 'http://data.krx.co.kr'
+    krx_request_timeout_sec: float = 10.0
 
     scheduler_enabled: bool = False
     scheduler_timezone: str = 'Asia/Seoul'

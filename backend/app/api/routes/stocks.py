@@ -25,11 +25,12 @@ def stock_detail(
     bars = provider.get_daily_bars(stock_code, 30)
     recent_closes = [float(bar.close_price) for bar in bars]
     snapshot_value = result.foreign_net_buy_snapshot_value
-    snapshot_source = result.foreign_data_source
+    snapshot_source = result.foreign_data_source or 'confirmed:unknown|snapshot:unavailable'
     try:
         snapshot = provider.get_foreign_investor_intraday_snapshot(stock_code)
         snapshot_value = snapshot.net_buy_value
-        snapshot_source = f'{result.foreign_data_source}|{snapshot.source}' if result.foreign_data_source else snapshot.source
+        confirmed_part = snapshot_source.split('|snapshot:')[0] if '|snapshot:' in snapshot_source else snapshot_source
+        snapshot_source = f'{confirmed_part}|snapshot:{snapshot.source}'
     except Exception:
         pass
 
