@@ -35,6 +35,19 @@ function maStatus(item) {
   return '약세';
 }
 
+function formatForeignValue(value) {
+  if (value === null || value === undefined) return '-';
+  return Number(value).toLocaleString();
+}
+
+function foreignStatusLabel(item) {
+  if (item.foreign_data_status === 'confirmed') return '확정';
+  if (item.foreign_net_buy_snapshot_value !== null && item.foreign_net_buy_snapshot_value !== undefined) {
+    return '미확정(스냅샷)';
+  }
+  return '없음';
+}
+
 export default function ScansPage() {
   const { loading } = useRequireAuth();
   const [strategies, setStrategies] = useState([]);
@@ -210,7 +223,9 @@ export default function ScansPage() {
                 <th>RSI Signal</th>
                 <th>MA 상태</th>
                 <th>볼밴 하단 거리</th>
-                <th>외인 순매수</th>
+                <th>외인 확정합</th>
+                <th>장중 스냅샷</th>
+                <th>외인 상태</th>
                 <th>거래대금</th>
                 <th>점수</th>
                 <th>등급</th>
@@ -235,7 +250,9 @@ export default function ScansPage() {
                     <td>{Number(item.rsi_signal).toFixed(2)}</td>
                     <td>{maStatus(item)}</td>
                     <td>{bbDistance.toFixed(2)}%</td>
-                    <td>{Number(item.foreign_net_buy_value).toLocaleString()}</td>
+                    <td>{formatForeignValue(item.foreign_net_buy_confirmed_value)}</td>
+                    <td>{formatForeignValue(item.foreign_net_buy_snapshot_value)}</td>
+                    <td title={item.foreign_data_source || ''}>{foreignStatusLabel(item)}</td>
                     <td>{Number(item.trading_value).toLocaleString()}</td>
                     <td>{item.score}</td>
                     <td><span className={`badge ${item.grade}`}>{item.grade}</span></td>

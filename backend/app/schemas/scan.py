@@ -39,6 +39,10 @@ class ScanResultOut(BaseModel):
     rsi: float
     rsi_signal: float
     foreign_net_buy_value: int
+    foreign_net_buy_confirmed_value: int | None = None
+    foreign_net_buy_snapshot_value: int | None = None
+    foreign_data_status: str | None = None
+    foreign_data_source: str | None = None
     trading_value: int
     score: int
     grade: str
@@ -63,6 +67,10 @@ class StockDetailOut(BaseModel):
     rsi: float
     rsi_signal: float
     foreign_net_buy_value: int
+    foreign_net_buy_confirmed_value: int | None = None
+    foreign_net_buy_snapshot_value: int | None = None
+    foreign_data_status: str | None = None
+    foreign_data_source: str | None = None
     trading_value: int
     score: int
     grade: str

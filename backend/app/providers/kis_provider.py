@@ -11,7 +11,14 @@ import zipfile
 import httpx
 
 from app.core.exceptions import AppError
-from app.providers.base import DailyBar, MarketDataProvider, Quote, StockMeta
+from app.providers.base import (
+    DailyBar,
+    ForeignInvestorDailyConfirmed,
+    ForeignInvestorIntradaySnapshot,
+    MarketDataProvider,
+    Quote,
+    StockMeta,
+)
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -426,11 +433,11 @@ class KisMarketDataProvider(MarketDataProvider):
             return None
 
     @classmethod
-    def _split_fixed_width(cls, text: str) -> dict[str, str]:
+    def _split_fixed_width_bytes(cls, raw: bytes) -> dict[str, str]:
         values: list[str] = []
         cursor = 0
         for width in cls.FIXED_FIELD_WIDTHS:
-            values.append(text[cursor : cursor + width].strip())
+            values.append(raw[cursor : cursor + width].decode('cp949', errors='ignore').strip())
             cursor += width
         return dict(zip(cls.FIXED_FIELD_COLUMNS, values, strict=False))
 
@@ -463,7 +470,7 @@ class KisMarketDataProvider(MarketDataProvider):
         try:
             with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
                 with zf.open('kospi_code.mst') as fp:
-                    raw_content = fp.read().decode('cp949', errors='ignore')
+                    raw_content = fp.read()
         except Exception as exc:
             raise AppError(
                 code='kis_universe_parse_failed',
@@ -472,35 +479,48 @@ class KisMarketDataProvider(MarketDataProvider):
                 details={'reason': str(exc)},
             ) from exc
 
+        strict_stocks: list[StockMeta] = []
+        relaxed_stocks: list[StockMeta] = []
+
         stocks: list[StockMeta] = []
         for raw_line in raw_content.splitlines():
-            line = raw_line.rstrip('\r\n')
+            line = raw_line.rstrip(b'\r\n')
             if len(line) < 228:
                 continue
             part1 = line[:-228]
             part2 = line[-228:]
 
-            code = part1[:9].strip()
+            code = part1[:9].decode('cp949', errors='ignore').strip()
             if not code.isdigit() or len(code) != 6:
                 continue
-            name = part1[21:].strip()
+            name = part1[21:].decode('cp949', errors='ignore').strip()
             if not name:
                 continue
 
-            meta = self._split_fixed_width(part2)
+            meta = self._split_fixed_width_bytes(part2)
+            market_cap = self._master_market_cap_to_won(
+                meta.get('시가총액', ''),
+                meta.get('상장주수', ''),
+                meta.get('기준가', ''),
+            )
+            candidate = StockMeta(code=code, name=name, market='KOSPI', market_cap=market_cap)
+            relaxed_stocks.append(candidate)
+
             if meta.get('KOSPI') not in {'Y', '1'}:
                 continue
             if meta.get('ETP') == 'Y' or meta.get('ELW발행') == 'Y' or meta.get('SPAC') == 'Y':
                 continue
             if meta.get('거래정지') == 'Y' or meta.get('정리매매') == 'Y' or meta.get('관리종목') == 'Y':
                 continue
+            strict_stocks.append(candidate)
 
-            market_cap = self._master_market_cap_to_won(
-                meta.get('시가총액', ''),
-                meta.get('상장주수', ''),
-                meta.get('기준가', ''),
+        if strict_stocks:
+            stocks = strict_stocks
+        else:
+            logger.warning(
+                'KIS strict universe filter returned zero stocks. Falling back to relaxed KOSPI master list.'
             )
-            stocks.append(StockMeta(code=code, name=name, market='KOSPI', market_cap=market_cap))
+            stocks = relaxed_stocks
 
         stocks.sort(key=lambda item: item.market_cap, reverse=True)
         if self.universe_limit > 0:
@@ -622,63 +642,110 @@ class KisMarketDataProvider(MarketDataProvider):
 
         return Quote(code=stock_code, price=price, trading_value=trading_value)
 
-    def _foreign_net_buy_from_inquire_investor(self, stock_code: str) -> int:
-        payload = self._request_json(
-            method='GET',
-            path=self.INVESTOR_ENDPOINT,
-            tr_id='FHKST01010900',
-            params={
-                'FID_COND_MRKT_DIV_CODE': 'J',
-                'FID_INPUT_ISCD': stock_code,
-            },
-        )
+    @staticmethod
+    def _extract_money_value(raw: str | int | float | None) -> int | None:
+        if raw is None:
+            return None
+        text = str(raw).strip()
+        if text == '':
+            return None
+        normalized = re.sub(r'[^0-9\-]', '', text)
+        if normalized in {'', '-'}:
+            return None
+        try:
+            return int(normalized)
+        except ValueError:
+            return None
+
+    def get_foreign_investor_intraday_snapshot(self, stock_code: str) -> ForeignInvestorIntradaySnapshot:
+        try:
+            payload = self._request_json(
+                method='GET',
+                path=self.INVESTOR_ENDPOINT,
+                tr_id='FHKST01010900',
+                params={
+                    'FID_COND_MRKT_DIV_CODE': 'J',
+                    'FID_INPUT_ISCD': stock_code,
+                },
+            )
+        except AppError as exc:
+            logger.warning('KIS intraday investor snapshot failed for %s: %s', stock_code, exc.message)
+            return ForeignInvestorIntradaySnapshot(
+                stock_code,
+                as_of=utcnow(),
+                net_buy_value=None,
+                source='kis_intraday_snapshot_unavailable',
+                is_confirmed=False,
+            )
+
         output = payload.get('output') or {}
         if isinstance(output, list):
             output = output[0] if output else {}
-        amount = self._to_int(output.get('frgn_ntby_tr_pbmn'))
-        if amount == 0:
-            amount = self._to_int(output.get('frgn_ntby_qty'))
-        return amount
 
-    def get_foreign_net_buy_aggregate(self, stock_code: str, days: int) -> int:
-        target_days = max(days, 1)
-        payload = self._request_json(
-            method='GET',
-            path=self.INVESTOR_DAILY_ENDPOINT,
-            tr_id='FHPTJ04160001',
-            params={
-                'FID_COND_MRKT_DIV_CODE': 'J',
-                'FID_INPUT_ISCD': stock_code,
-                'FID_INPUT_DATE_1': datetime.now(self.KST).strftime('%Y%m%d'),
-                'FID_ORG_ADJ_PRC': '',
-                'FID_ETC_CLS_CODE': '',
-            },
+        return ForeignInvestorIntradaySnapshot(
+            stock_code=stock_code,
+            as_of=utcnow(),
+            net_buy_value=self._extract_money_value(output.get('frgn_ntby_tr_pbmn')),
+            source='kis_investor_intraday_snapshot',
+            is_confirmed=False,
         )
+
+    def get_foreign_investor_daily_confirmed(
+        self,
+        stock_code: str,
+        start_date: date,
+        end_date: date,
+    ) -> list[ForeignInvestorDailyConfirmed]:
+        if start_date > end_date:
+            return []
+
+        try:
+            payload = self._request_json(
+                method='GET',
+                path=self.INVESTOR_DAILY_ENDPOINT,
+                tr_id='FHPTJ04160001',
+                params={
+                    'FID_COND_MRKT_DIV_CODE': 'J',
+                    'FID_INPUT_ISCD': stock_code,
+                    'FID_INPUT_DATE_1': end_date.strftime('%Y%m%d'),
+                    'FID_ORG_ADJ_PRC': '',
+                    'FID_ETC_CLS_CODE': '',
+                },
+            )
+        except AppError as exc:
+            logger.warning('KIS daily confirmed investor fetch failed for %s: %s', stock_code, exc.message)
+            return []
 
         rows = payload.get('output2') or []
         if not isinstance(rows, list) or not rows:
-            return self._foreign_net_buy_from_inquire_investor(stock_code)
+            return []
 
-        daily_values: list[tuple[date, int]] = []
+        dedup: dict[date, ForeignInvestorDailyConfirmed] = {}
         for row in rows:
             trade_date = self._parse_trade_date(row.get('stck_bsop_date'))
             if not trade_date:
                 continue
-            amount = self._to_int(row.get('frgn_ntby_tr_pbmn'))
-            if amount == 0:
-                amount = self._to_int(row.get('frgn_ntby_qty'))
-            daily_values.append((trade_date, amount))
-
-        if not daily_values:
-            return self._foreign_net_buy_from_inquire_investor(stock_code)
-
-        seen_dates: set[date] = set()
-        ordered_values: list[int] = []
-        for trade_date, amount in sorted(daily_values, key=lambda item: item[0], reverse=True):
-            if trade_date in seen_dates:
+            if trade_date < start_date or trade_date > end_date:
                 continue
-            seen_dates.add(trade_date)
-            ordered_values.append(amount)
+            dedup[trade_date] = ForeignInvestorDailyConfirmed(
+                stock_code=stock_code,
+                trade_date=trade_date,
+                net_buy_value=self._extract_money_value(row.get('frgn_ntby_tr_pbmn')),
+                source='kis_investor_daily_confirmed',
+                is_confirmed=True,
+            )
+        return [dedup[key] for key in sorted(dedup.keys())]
+
+    def get_foreign_net_buy_aggregate(self, stock_code: str, days: int) -> int:
+        target_days = max(days, 1)
+        end_date = datetime.now(self.KST).date()
+        start_date = end_date - timedelta(days=target_days * 4)
+        rows = self.get_foreign_investor_daily_confirmed(stock_code, start_date, end_date)
+        ordered_values: list[int] = []
+        for item in sorted(rows, key=lambda row: row.trade_date, reverse=True):
+            if item.net_buy_value is None:
+                continue
+            ordered_values.append(int(item.net_buy_value))
             if len(ordered_values) >= target_days:
                 break
 

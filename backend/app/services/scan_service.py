@@ -17,6 +17,10 @@ from app.models.strategy import Strategy
 from app.models.user import User
 from app.models.watchlist_item import WatchlistItem
 from app.providers import DailyBar, StockMeta, get_market_data_provider
+from app.services.foreign_investor_service import (
+    get_foreign_investor_context,
+    sync_confirmed_foreign_for_market,
+)
 from app.utils.datetime_utils import utcnow
 from app.utils.indicators import bollinger, is_nan, rsi, sma
 
@@ -44,7 +48,7 @@ def _grade_from_score(score: int, mandatory_ok: bool) -> str:
 
 
 
-def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], foreign_net_buy: int) -> dict:
+def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], foreign_data: dict) -> dict:
     closes = [float(item.close_price) for item in bars]
     latest_price = closes[-1]
     latest_trading_value = int(bars[-1].trading_value)
@@ -93,7 +97,12 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
 
     ma5_above_ma20 = ma5 >= ma20
 
-    foreign_net_buy_positive = foreign_net_buy > 0
+    foreign_confirmed_value = foreign_data.get('confirmed_aggregate_value')
+    foreign_snapshot_value = foreign_data.get('snapshot_value')
+    foreign_status = str(foreign_data.get('status') or 'unavailable')
+    foreign_source = str(foreign_data.get('source') or 'unknown')
+    foreign_snapshot_source = str(foreign_data.get('snapshot_source') or 'unknown')
+    foreign_net_buy_positive = (foreign_confirmed_value is not None) and (foreign_confirmed_value > 0)
 
     trading_value_pass = latest_trading_value >= strategy.min_trading_value
     market_cap_pass = stock.market_cap >= strategy.min_market_cap
@@ -137,11 +146,13 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
         else:
             failed.append('MA5 > MA20 미충족')
 
-    if foreign_net_buy_positive:
+    if foreign_confirmed_value is None:
+        matched.append('외인 확정 데이터 없음(중립 처리)')
+    elif foreign_net_buy_positive:
         score += SCORE_WEIGHTS['foreign_net_buy']
-        matched.append(f'외국인 최근 {strategy.foreign_net_buy_days}일 순매수 우위')
+        matched.append(f'외국인 최근 {strategy.foreign_net_buy_days}일 확정 순매수 우위')
     else:
-        failed.append('외국인 순매수 조건 미충족')
+        failed.append('외국인 확정 순매수 조건 미충족')
 
     if trading_value_pass:
         score += SCORE_WEIGHTS['trading_value_pass']
@@ -179,7 +190,11 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
         'bb_lower': bb_lower,
         'rsi': current_rsi,
         'rsi_signal': current_signal,
-        'foreign_net_buy_value': int(foreign_net_buy),
+        'foreign_net_buy_value': int(foreign_confirmed_value or 0),
+        'foreign_net_buy_confirmed_value': (int(foreign_confirmed_value) if foreign_confirmed_value is not None else None),
+        'foreign_net_buy_snapshot_value': (int(foreign_snapshot_value) if foreign_snapshot_value is not None else None),
+        'foreign_data_status': foreign_status,
+        'foreign_data_source': f'{foreign_source}|{foreign_snapshot_source}',
         'trading_value': latest_trading_value,
         'score': int(score),
         'grade': grade,
@@ -211,8 +226,13 @@ def run_scan(db: Session, strategy: Strategy, run_type: str = 'manual') -> ScanR
             run.total_scanned += 1
             try:
                 bars = provider.get_daily_bars(stock.code, max(120, strategy.bb_period + 60, strategy.rsi_period + 30))
-                foreign_net_buy = provider.get_foreign_net_buy_aggregate(stock.code, strategy.foreign_net_buy_days)
-                evaluated = _evaluate_stock(strategy, stock, bars, foreign_net_buy)
+                foreign_data = get_foreign_investor_context(
+                    db,
+                    provider,
+                    stock.code,
+                    strategy.foreign_net_buy_days,
+                )
+                evaluated = _evaluate_stock(strategy, stock, bars, foreign_data)
 
                 result = ScanResult(scan_run_id=run.id, strategy_id=strategy.id, **evaluated)
                 db.add(result)
@@ -321,6 +341,12 @@ def get_latest_stock_result(db: Session, user: User, stock_code: str) -> ScanRes
 
 
 def run_scheduled_scans(db: Session) -> None:
+    try:
+        scanned, saved = sync_confirmed_foreign_for_market(db, market='KOSPI', lookback_days=10)
+        logger.info('Confirmed foreign investor sync finished before EOD scan (stocks=%s, rows=%s)', scanned, saved)
+    except Exception as exc:
+        logger.exception('Confirmed foreign investor sync failed before EOD scan: %s', exc)
+
     strategies: Iterable[Strategy] = db.scalars(
         select(Strategy).where(Strategy.is_active.is_(True), Strategy.scan_interval_type == 'eod')
     ).all()

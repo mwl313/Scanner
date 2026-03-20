@@ -18,6 +18,9 @@ export default function StockDetailPage() {
   }, [loading, params.code]);
 
   if (loading || !detail) return <p>로딩중...</p>;
+  const foreignStatusLabel = detail.foreign_data_status === 'confirmed'
+    ? '확정'
+    : (detail.foreign_net_buy_snapshot_value == null ? '없음' : '미확정(스냅샷)');
 
   return (
     <div>
@@ -40,7 +43,10 @@ export default function StockDetailPage() {
           <p>BB Lower: {Number(detail.bb_lower).toFixed(2)}</p>
           <p>RSI: {Number(detail.rsi).toFixed(2)}</p>
           <p>RSI Signal: {Number(detail.rsi_signal).toFixed(2)}</p>
-          <p>외인 순매수: {Number(detail.foreign_net_buy_value).toLocaleString()}</p>
+          <p>외인 최근 확정합: {detail.foreign_net_buy_confirmed_value == null ? '-' : Number(detail.foreign_net_buy_confirmed_value).toLocaleString()}</p>
+          <p>외인 장중 스냅샷: {detail.foreign_net_buy_snapshot_value == null ? '-' : Number(detail.foreign_net_buy_snapshot_value).toLocaleString()}</p>
+          <p>외인 데이터 상태: {foreignStatusLabel}</p>
+          <p>외인 데이터 소스: {detail.foreign_data_source || '-'}</p>
         </div>
       </div>
 

@@ -24,6 +24,14 @@ def stock_detail(
     provider = get_market_data_provider()
     bars = provider.get_daily_bars(stock_code, 30)
     recent_closes = [float(bar.close_price) for bar in bars]
+    snapshot_value = result.foreign_net_buy_snapshot_value
+    snapshot_source = result.foreign_data_source
+    try:
+        snapshot = provider.get_foreign_investor_intraday_snapshot(stock_code)
+        snapshot_value = snapshot.net_buy_value
+        snapshot_source = f'{result.foreign_data_source}|{snapshot.source}' if result.foreign_data_source else snapshot.source
+    except Exception:
+        pass
 
     return StockDetailOut(
         stock_code=result.stock_code,
@@ -39,6 +47,12 @@ def stock_detail(
         rsi=float(result.rsi),
         rsi_signal=float(result.rsi_signal),
         foreign_net_buy_value=int(result.foreign_net_buy_value),
+        foreign_net_buy_confirmed_value=(
+            int(result.foreign_net_buy_confirmed_value) if result.foreign_net_buy_confirmed_value is not None else None
+        ),
+        foreign_net_buy_snapshot_value=(int(snapshot_value) if snapshot_value is not None else None),
+        foreign_data_status=result.foreign_data_status or 'unavailable',
+        foreign_data_source=snapshot_source,
         trading_value=int(result.trading_value),
         score=result.score,
         grade=result.grade,
@@ -71,6 +85,14 @@ def stock_indicators(
         'rsi': float(result.rsi),
         'rsi_signal': float(result.rsi_signal),
         'foreign_net_buy_value': int(result.foreign_net_buy_value),
+        'foreign_net_buy_confirmed_value': (
+            int(result.foreign_net_buy_confirmed_value) if result.foreign_net_buy_confirmed_value is not None else None
+        ),
+        'foreign_net_buy_snapshot_value': (
+            int(result.foreign_net_buy_snapshot_value) if result.foreign_net_buy_snapshot_value is not None else None
+        ),
+        'foreign_data_status': result.foreign_data_status or 'unavailable',
+        'foreign_data_source': result.foreign_data_source,
     }
 
 

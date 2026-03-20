@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 
 @dataclass
@@ -29,6 +29,24 @@ class Quote:
     trading_value: int
 
 
+@dataclass
+class ForeignInvestorIntradaySnapshot:
+    stock_code: str
+    as_of: datetime
+    net_buy_value: int | None
+    source: str
+    is_confirmed: bool = False
+
+
+@dataclass
+class ForeignInvestorDailyConfirmed:
+    stock_code: str
+    trade_date: date
+    net_buy_value: int | None
+    source: str
+    is_confirmed: bool = True
+
+
 class MarketDataProvider(ABC):
     @abstractmethod
     def list_stocks(self, market: str) -> list[StockMeta]:
@@ -40,6 +58,19 @@ class MarketDataProvider(ABC):
 
     @abstractmethod
     def get_latest_quote(self, stock_code: str) -> Quote:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_foreign_investor_intraday_snapshot(self, stock_code: str) -> ForeignInvestorIntradaySnapshot:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_foreign_investor_daily_confirmed(
+        self,
+        stock_code: str,
+        start_date: date,
+        end_date: date,
+    ) -> list[ForeignInvestorDailyConfirmed]:
         raise NotImplementedError
 
     @abstractmethod

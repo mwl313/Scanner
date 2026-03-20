@@ -134,3 +134,40 @@ def test_get_foreign_net_buy_aggregate_uses_recent_days(monkeypatch):
     assert aggregated == 100
 
     provider._client.close()
+
+
+def test_intraday_snapshot_does_not_fallback_to_quantity(monkeypatch):
+    provider = make_provider()
+
+    def fake_snapshot(*_args, **_kwargs):
+        return {'output': {'frgn_ntby_tr_pbmn': '', 'frgn_ntby_qty': '99999'}}
+
+    monkeypatch.setattr(provider, '_request_json', fake_snapshot)
+
+    snapshot = provider.get_foreign_investor_intraday_snapshot('005930')
+
+    assert snapshot.net_buy_value is None
+    assert snapshot.is_confirmed is False
+
+    provider._client.close()
+
+
+def test_daily_confirmed_does_not_substitute_quantity(monkeypatch):
+    provider = make_provider()
+
+    def fake_daily(*_args, **_kwargs):
+        return {
+            'output2': [
+                {'stck_bsop_date': '20260319', 'frgn_ntby_tr_pbmn': '', 'frgn_ntby_qty': '12345'},
+            ]
+        }
+
+    monkeypatch.setattr(provider, '_request_json', fake_daily)
+
+    rows = provider.get_foreign_investor_daily_confirmed('005930', date(2026, 3, 19), date(2026, 3, 19))
+
+    assert len(rows) == 1
+    assert rows[0].net_buy_value is None
+    assert rows[0].is_confirmed is True
+
+    provider._client.close()

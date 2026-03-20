@@ -1,7 +1,14 @@
-from datetime import timedelta
+from datetime import date, timedelta
 import random
 
-from app.providers.base import DailyBar, MarketDataProvider, Quote, StockMeta
+from app.providers.base import (
+    DailyBar,
+    ForeignInvestorDailyConfirmed,
+    ForeignInvestorIntradaySnapshot,
+    MarketDataProvider,
+    Quote,
+    StockMeta,
+)
 from app.providers.mock_symbols import MOCK_STOCKS
 from app.utils.datetime_utils import utcnow
 
@@ -69,13 +76,60 @@ class MockMarketDataProvider(MarketDataProvider):
         bar = self.get_daily_bars(stock_code, 90)[-1]
         return Quote(code=stock_code, price=bar.close_price, trading_value=bar.trading_value)
 
-    def get_foreign_net_buy_aggregate(self, stock_code: str, days: int) -> int:
+    def get_foreign_investor_intraday_snapshot(self, stock_code: str) -> ForeignInvestorIntradaySnapshot:
+        seed = int(stock_code) + 29
+        rng = random.Random(seed)
+        value = int(rng.uniform(-5000000000, 5000000000))
+        return ForeignInvestorIntradaySnapshot(
+            stock_code=stock_code,
+            as_of=utcnow(),
+            net_buy_value=value,
+            source='mock_intraday_snapshot',
+            is_confirmed=False,
+        )
+
+    def get_foreign_investor_daily_confirmed(
+        self,
+        stock_code: str,
+        start_date: date,
+        end_date: date,
+    ) -> list[ForeignInvestorDailyConfirmed]:
+        if start_date > end_date:
+            return []
+
         seed = int(stock_code) + 17
         rng = random.Random(seed)
-        daily = [int(rng.uniform(-800000000, 1200000000)) for _ in range(days)]
 
-        # 최근 반등 후보를 더 쉽게 보기 위해 절반 정도는 양수 바이어스를 준다.
-        if int(stock_code[-1]) % 2 == 0:
-            daily = [value + 250000000 for value in daily]
+        entries: list[ForeignInvestorDailyConfirmed] = []
+        cursor = start_date
+        while cursor <= end_date:
+            if cursor.weekday() < 5:
+                value = int(rng.uniform(-800000000, 1200000000))
+                if int(stock_code[-1]) % 2 == 0:
+                    value += 250000000
+                entries.append(
+                    ForeignInvestorDailyConfirmed(
+                        stock_code=stock_code,
+                        trade_date=cursor,
+                        net_buy_value=value,
+                        source='mock_daily_confirmed',
+                        is_confirmed=True,
+                    )
+                )
+            cursor += timedelta(days=1)
+        return entries
 
-        return int(sum(daily))
+    def get_foreign_net_buy_aggregate(self, stock_code: str, days: int) -> int:
+        target_days = max(days, 1)
+        end_date = utcnow().date()
+        start_date = end_date - timedelta(days=target_days * 2)
+        rows = self.get_foreign_investor_daily_confirmed(stock_code, start_date, end_date)
+        rows_sorted = sorted(rows, key=lambda item: item.trade_date, reverse=True)
+        picked_values: list[int] = []
+        for item in rows_sorted:
+            if item.net_buy_value is None:
+                continue
+            picked_values.append(int(item.net_buy_value))
+            if len(picked_values) >= target_days:
+                break
+        return int(sum(picked_values))

@@ -112,7 +112,25 @@ pytest
 - `list_stocks(market)`
 - `get_daily_bars(stock_code, days)`
 - `get_latest_quote(stock_code)`
-- `get_foreign_net_buy_aggregate(stock_code, days)`
+- `get_foreign_investor_intraday_snapshot(stock_code)`
+- `get_foreign_investor_daily_confirmed(stock_code, start_date, end_date)`
+
+## 외인 데이터 모델 (Option A)
+외국인 데이터는 2개 계층으로 분리합니다.
+
+1. 장중 스냅샷 (`intraday snapshot`)
+- 용도: 화면 정보성 표시(대시보드/종목 상세)
+- 특징: 시점 데이터, 미확정
+
+2. 일별 확정 데이터 (`daily confirmed`)
+- 용도: 스캐너 점수/조건 평가의 기준 데이터
+- 저장: `foreign_investor_daily` 테이블 (중복 안전: `stock_code + trade_date` unique)
+
+핵심 규칙:
+- 금액값(`value`)과 수량(`quantity`)을 섞지 않음
+- 금액값이 없으면 `None`/unavailable로 처리 (수량 대체 금지)
+- 스코어링은 **확정 데이터**만 사용
+- 확정 데이터가 없으면 외인 조건은 **중립 처리** (스냅샷으로 점수 대체 금지)
 
 ### 현재 KIS 유니버스 정의
 - 소스: KIS `kospi_code.mst.zip` 마스터 파일
@@ -128,6 +146,7 @@ pytest
 - `EXCLUDED`는 명시적으로 선택했을 때 조회
 - 결과 행에 `필수조건 통과/미충족` 상태 표시
 - 통과 이유는 2~4개 핵심 라벨로 축약 표시
+- 외인 데이터는 `확정합 / 장중 스냅샷 / 상태`를 분리 표시
 
 ## 합리적 가정(문서 모호점 처리)
 1. RSI 교차 타이밍: 당일 교차 또는 직전 1봉 교차(현재도 시그널 위)까지 허용.
@@ -135,6 +154,7 @@ pytest
 3. 볼린저 하단 근접: 하단선과의 거리 3% 이내를 근접으로 정의.
 4. 결과 저장: 필수조건 탈락 종목도 `EXCLUDED`로 저장해 복기 가능하도록 처리.
 5. KIS 유니버스는 전종목 완전탐색보다 안정 실행 가능한 상위 N개 스캔을 우선.
+6. KIS 일별 외인 데이터 API 제한/미제공 시 스코어링은 외인 항목을 중립 처리하고 스냅샷은 정보 표시용으로만 사용.
 
 ## 운영 메모 (Mac mini self-hosted)
 - 운영에서는 `APP_ENV=production` + HTTPS 종단(TLS) 구성 필요

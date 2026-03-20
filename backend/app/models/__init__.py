@@ -1,3 +1,4 @@
+from app.models.foreign_investor_daily import ForeignInvestorDaily
 from app.models.notification import Notification
 from app.models.scan_result import ScanResult
 from app.models.scan_run import ScanRun
@@ -11,6 +12,7 @@ __all__ = [
     'User',
     'Session',
     'Strategy',
+    'ForeignInvestorDaily',
     'ScanRun',
     'ScanResult',
     'WatchlistItem',
