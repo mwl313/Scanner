@@ -5,6 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.scan_service import run_scheduled_scans
+from app.utils.datetime_utils import as_kst, is_korean_trading_day
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,13 @@ class SchedulerManager:
 
     @staticmethod
     def _run_eod_job() -> None:
+        if not is_korean_trading_day():
+            logger.info(
+                'Skipping scheduled scan: non-trading day (weekend) [kst=%s]',
+                as_kst().isoformat(),
+            )
+            return
+
         db = SessionLocal()
         try:
             run_scheduled_scans(db)

@@ -84,6 +84,29 @@ button.danger {
   background: var(--danger);
 }
 
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--primary);
+  color: white;
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button-link.secondary {
+  background: #738ca2;
+}
+
 input,
 textarea,
 select {
@@ -142,6 +165,105 @@ td {
   min-width: 300px;
 }
 
+.reason-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.reason-list.compact {
+  padding-left: 16px;
+}
+
+.reason-list.compact li {
+  margin-bottom: 2px;
+  line-height: 1.35;
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.scan-result-compact {
+  min-width: 0;
+}
+
+.scan-result-compact .reason-col {
+  min-width: 360px;
+}
+
+.filter-dropdown {
+  min-width: 220px;
+}
+
+.filter-dropdown details {
+  position: relative;
+  width: 220px;
+}
+
+.filter-dropdown summary {
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.filter-dropdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-dropdown .dropdown-panel {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  padding: 8px;
+}
+
+.filter-dropdown .checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 4px;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.filter-dropdown .checkbox-option input {
+  width: auto;
+}
+
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 42, 67, 0.35);
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.detail-drawer {
+  width: min(520px, 100vw);
+  height: 100%;
+  overflow-y: auto;
+  background: #f7fbff;
+  border-left: 1px solid var(--border);
+  padding: 16px;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+}
+
 .badge {
   display: inline-block;
   padding: 3px 8px;
@@ -187,5 +309,18 @@ td {
   .grid-2,
   .grid-3 {
     grid-template-columns: 1fr;
+  }
+
+  .scan-result-compact .reason-col {
+    min-width: 220px;
+  }
+
+  .detail-overlay {
+    justify-content: center;
+  }
+
+  .detail-drawer {
+    width: 100vw;
+    border-left: 0;
   }
 }
