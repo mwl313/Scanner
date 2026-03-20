@@ -44,14 +44,23 @@ docker compose up --build
 
 ## 초기 관리자 생성
 ```bash
-docker compose exec api python scripts/create_admin.py --email admin@example.com --password 'changeMe123!'
+docker compose exec api python scripts/create_admin.py --email admin@example.com
+```
+비밀번호는 프롬프트(숨김 입력)로 받습니다.
+자동화가 필요하면 환경변수로 전달:
+```bash
+docker compose exec -e ADMIN_PASSWORD='changeMe123!' api python scripts/create_admin.py --email admin@example.com
 ```
 
 ## Seed 데이터 주입
 ```bash
 docker compose exec api python scripts/seed.py
 ```
-기본 데모 계정: `demo@example.com / demo1234`
+`SEED_DEMO_PASSWORD` 미설정 시 시드 실행마다 1회성 랜덤 비밀번호가 생성되어 로그에 출력됩니다.
+고정 비밀번호를 쓰려면:
+```bash
+docker compose exec -e SEED_DEMO_PASSWORD='demo1234' api python scripts/seed.py
+```
 
 ## 마이그레이션
 ### 적용
@@ -90,6 +99,7 @@ pytest
 
 ## 인증 방식
 - 이메일/비밀번호 회원가입
+- 신규 계정 생성 시 기본 전략 1개 자동 생성(`MVP 기본 전략`)
 - 비밀번호: Argon2id 해시 저장
 - 로그인 시 랜덤 세션 토큰 발급
 - DB에는 토큰 해시만 저장

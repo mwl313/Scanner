@@ -1,5 +1,6 @@
 import os
 import sys
+import secrets
 from datetime import date
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -20,9 +21,16 @@ def seed() -> None:
     db = SessionLocal()
     try:
         email = 'demo@example.com'
+        demo_password = os.getenv('SEED_DEMO_PASSWORD', '').strip()
+        if not demo_password:
+            demo_password = secrets.token_urlsafe(12)
+            print(
+                '[seed] SEED_DEMO_PASSWORD is not set. Generated one-time demo password '
+                f'for this run: {demo_password}'
+            )
         user = db.scalar(select(User).where(User.email == email))
         if not user:
-            user = User(email=email, password_hash=hash_password('demo1234'))
+            user = User(email=email, password_hash=hash_password(demo_password))
             db.add(user)
             db.commit()
             db.refresh(user)

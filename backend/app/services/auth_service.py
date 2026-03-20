@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.models.session import Session as UserSession
 from app.models.user import User
+from app.services.default_strategy_service import ensure_default_strategy
 from app.utils.datetime_utils import utcnow
 from app.utils.security import create_session_token, hash_password, hash_session_token, verify_password
 
@@ -23,6 +24,8 @@ def signup_user(db: Session, email: str, password: str, password_confirm: str) -
 
     user = User(email=email.lower().strip(), password_hash=hash_password(password))
     db.add(user)
+    db.flush()
+    ensure_default_strategy(db, user, commit=False)
     db.commit()
     db.refresh(user)
     return user

@@ -13,6 +13,8 @@ from app.services.auth_service import signup_user
 
 def test_strategy_crud_cycle(db_session):
     user = signup_user(db_session, 'strategy@example.com', 'password123', 'password123')
+    initial_items = list_strategies(db_session, user)
+    initial_count = len(initial_items)
 
     created = create_strategy(
         db_session,
@@ -48,8 +50,8 @@ def test_strategy_crud_cycle(db_session):
     assert '(복제)' in copied.name
 
     all_items = list_strategies(db_session, user)
-    assert len(all_items) == 2
+    assert len(all_items) == initial_count + 2
 
     delete_strategy(db_session, updated)
     all_items = list_strategies(db_session, user)
-    assert len(all_items) == 1
+    assert len(all_items) == initial_count + 1
