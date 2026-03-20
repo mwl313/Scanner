@@ -185,6 +185,23 @@ pytest
 - nginx 앞단 SSL 인증서 자동 갱신(예: certbot) 구성 권장
 - DB 정기 백업 스케줄 별도 구성 권장
 
+## 공개 배포 보안 설정
+인터넷 공개 시 최소 권장값:
+- `APP_ENV=production`
+- `ENFORCE_HTTPS=true`
+- `SECRET_KEY`를 충분히 긴 랜덤값으로 교체
+- 회원가입 정책:
+  - 공개 유지: `ALLOW_PUBLIC_SIGNUP=true` + rate limit 유지
+  - 비공개/초대제: `ALLOW_PUBLIC_SIGNUP=false`
+
+인증 rate limit 환경변수:
+- `AUTH_LOGIN_RATE_LIMIT_IP_MAX` (기본 10)
+- `AUTH_LOGIN_RATE_LIMIT_EMAIL_MAX` (기본 10)
+- `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC` (기본 60)
+- `AUTH_SIGNUP_RATE_LIMIT_IP_MAX` (기본 5)
+- `AUTH_SIGNUP_RATE_LIMIT_EMAIL_MAX` (기본 3)
+- `AUTH_SIGNUP_RATE_LIMIT_WINDOW_SEC` (기본 3600)
+
 ## 주요 API
 - Auth: `/api/auth/signup`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`
 - Strategies: `/api/strategies`

@@ -15,6 +15,16 @@ class Settings(BaseSettings):
     secret_key: str = 'change-me-in-production'
     session_cookie_name: str = 'scanner_session'
     session_days: int = 30
+    allow_public_signup: bool = True
+    enforce_https: bool = False
+    security_headers_enabled: bool = True
+
+    auth_login_rate_limit_ip_max: int = 10
+    auth_login_rate_limit_email_max: int = 10
+    auth_login_rate_limit_window_sec: int = 60
+    auth_signup_rate_limit_ip_max: int = 5
+    auth_signup_rate_limit_email_max: int = 3
+    auth_signup_rate_limit_window_sec: int = 3600
 
     data_provider: str = 'mock'
     kis_base_url: str = 'https://openapi.koreainvestment.com:9443'
