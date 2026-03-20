@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, ForeignKey, String, Text
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -30,6 +30,7 @@ class Strategy(TimestampMixin, Base):
     use_ma20_filter: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     foreign_net_buy_days: Mapped[int] = mapped_column(default=3, nullable=False)
     scan_interval_type: Mapped[str] = mapped_column(String(20), default='eod', nullable=False)
+    strategy_config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     user = relationship('User', back_populates='strategies')
     scan_runs = relationship('ScanRun', back_populates='strategy', cascade='all, delete-orphan')

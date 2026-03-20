@@ -6,8 +6,10 @@ import { useRequireAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
 
 const MANDATORY_FAIL_PATTERNS = [
-  'RSI 상향 돌파',
-  'MA20 기준 과도한 이탈',
+  'RSI 조건 미충족',
+  '가격 vs MA20 미충족',
+  'MA5 vs MA20 미충족',
+  'MA20 vs MA60 미충족',
   '거래대금 기준 미달',
   '시장 필터 미충족',
   '시가총액 조건 미충족',
@@ -15,13 +17,15 @@ const MANDATORY_FAIL_PATTERNS = [
 
 function compactReason(reason) {
   if (!reason) return '';
-  if (reason.includes('RSI(14) vs RSI signal 상향 돌파')) return 'RSI 상향돌파';
-  if (reason.includes('RSI가 목표 구간')) return 'RSI 목표구간';
+  if (reason.includes('RSI 상향 돌파 + 목표구간')) return 'RSI 조건 충족';
   if (reason.includes('볼린저 하단 근접')) return '볼밴 하단근접';
-  if (reason.includes('가격이 MA20 위')) return 'MA20 위';
-  if (reason.includes('가격이 MA20 근처')) return 'MA20 근접';
-  if (reason.includes('MA5가 MA20 위')) return 'MA5>MA20';
+  if (reason.includes('가격 vs MA20 충족')) return '가격vsMA20';
+  if (reason.includes('MA5 vs MA20 충족')) return 'MA5vsMA20';
+  if (reason.includes('MA20 vs MA60 충족')) return 'MA20vsMA60';
   if (reason.includes('외국인 최근')) return '외인 순매수';
+  if (reason.includes('외인 확정 데이터 없음')) return '외인 중립';
+  if (reason.includes('외인 데이터 미확보지만')) return '외인 정책통과';
+  if (reason.includes('시가총액 기준 통과')) return '시가총액 통과';
   if (reason.includes('거래대금 기준 통과')) return '거래대금 통과';
   return reason;
 }

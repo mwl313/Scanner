@@ -5,12 +5,7 @@ import math
 from sqlalchemy import Select, and_, desc, select
 from sqlalchemy.orm import Session
 
-from app.core.scoring import (
-    BOLLINGER_LOWER_PROXIMITY,
-    GRADE_THRESHOLDS,
-    PRICE_NEAR_MA20_TOLERANCE,
-    SCORE_WEIGHTS,
-)
+from app.core.scoring import GRADE_THRESHOLDS
 from app.models.scan_result import ScanResult
 from app.models.scan_run import ScanRun
 from app.models.strategy import Strategy
@@ -21,6 +16,7 @@ from app.services.foreign_investor_service import (
     get_foreign_investor_context,
     sync_confirmed_foreign_for_market,
 )
+from app.services.strategy_schema_service import normalize_strategy_config
 from app.utils.datetime_utils import utcnow
 from app.utils.indicators import bollinger, is_nan, rsi, sma
 
@@ -32,6 +28,23 @@ def _safe_last(values: list[float], offset: int = 1) -> float:
     if len(values) < offset:
         return math.nan
     return values[-offset]
+
+
+def _rsi_cross_within_lookback(rsi_values: list[float], signal_values: list[float], lookback_bars: int) -> bool:
+    if len(rsi_values) < 2 or len(signal_values) < 2:
+        return False
+
+    max_lookback = max(int(lookback_bars), 0)
+    last_idx = len(rsi_values) - 1
+
+    for bars_ago in range(0, max_lookback + 1):
+        idx = last_idx - bars_ago
+        if idx <= 0:
+            break
+        crossed = rsi_values[idx - 1] <= signal_values[idx - 1] and rsi_values[idx] > signal_values[idx]
+        if crossed and all(rsi_values[j] >= signal_values[j] for j in range(idx, last_idx + 1)):
+            return True
+    return False
 
 
 
@@ -48,30 +61,43 @@ def _grade_from_score(score: int, mandatory_ok: bool) -> str:
 
 
 
-def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], foreign_data: dict) -> dict:
+def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta, bars: list[DailyBar], foreign_data: dict) -> dict:
     closes = [float(item.close_price) for item in bars]
     latest_price = closes[-1]
     latest_trading_value = int(bars[-1].trading_value)
 
+    categories = strategy_config['categories']
+    target_market = str(strategy_config.get('market') or strategy.market or 'KOSPI').upper()
+    rsi_cfg = categories['rsi']
+    bb_cfg = categories['bollinger']
+    ma_cfg = categories['ma']
+    foreign_cfg = categories['foreign']
+    market_cap_cfg = categories['market_cap']
+    trading_value_cfg = categories['trading_value']
+
     ma5_series = sma(closes, 5)
     ma20_series = sma(closes, 20)
     ma60_series = sma(closes, 60)
-    bb_upper_series, bb_mid_series, bb_lower_series = bollinger(closes, strategy.bb_period, strategy.bb_std)
+    bb_upper_series, bb_mid_series, bb_lower_series = bollinger(
+        closes,
+        int(bb_cfg['period']),
+        float(bb_cfg['std']),
+    )
 
-    rsi_series = rsi(closes, strategy.rsi_period)
+    rsi_series = rsi(closes, int(rsi_cfg['period']))
     valid_rsi = [value for value in rsi_series if not is_nan(value)]
-    if len(valid_rsi) < strategy.rsi_signal_period + 3:
+    if len(valid_rsi) < int(rsi_cfg['signal_period']) + int(rsi_cfg['cross_lookback_bars']) + 2:
         raise ValueError('Insufficient RSI history for signal calculation')
 
-    rsi_signal_series = sma(valid_rsi, strategy.rsi_signal_period)
+    rsi_signal_series = sma(valid_rsi, int(rsi_cfg['signal_period']))
+    rsi_with_signal = [(r, s) for r, s in zip(valid_rsi, rsi_signal_series, strict=False) if not is_nan(s)]
+    if len(rsi_with_signal) < int(rsi_cfg['cross_lookback_bars']) + 2:
+        raise ValueError('Insufficient RSI signal pairs for crossover evaluation')
+    rsi_values = [pair[0] for pair in rsi_with_signal]
+    signal_values = [pair[1] for pair in rsi_with_signal]
 
-    current_rsi = float(valid_rsi[-1])
-    prev_rsi = float(valid_rsi[-2])
-    prev2_rsi = float(valid_rsi[-3])
-
-    current_signal = float(rsi_signal_series[-1])
-    prev_signal = float(rsi_signal_series[-2])
-    prev2_signal = float(rsi_signal_series[-3])
+    current_rsi = float(rsi_values[-1])
+    current_signal = float(signal_values[-1])
 
     ma5 = float(_safe_last(ma5_series))
     ma20 = float(_safe_last(ma20_series))
@@ -83,19 +109,40 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
     if any(is_nan(v) for v in [ma5, ma20, ma60, bb_upper, bb_mid, bb_lower]):
         raise ValueError('Insufficient history for MA/Bollinger calculation')
 
-    rsi_cross_up = prev_rsi <= prev_signal and current_rsi > current_signal
-    rsi_cross_recent = prev2_rsi <= prev2_signal and prev_rsi > prev_signal and current_rsi >= current_signal
-    rsi_cross_ok = rsi_cross_up or rsi_cross_recent
+    rsi_cross_ok = _rsi_cross_within_lookback(
+        rsi_values,
+        signal_values,
+        int(rsi_cfg['cross_lookback_bars']),
+    )
 
-    rsi_in_range = strategy.rsi_min <= current_rsi <= strategy.rsi_max
+    rsi_in_range = float(rsi_cfg['min']) <= current_rsi <= float(rsi_cfg['max'])
 
     bb_distance_ratio = abs(latest_price - bb_lower) / bb_lower if bb_lower > 0 else 999
-    bb_lower_near = bb_distance_ratio <= BOLLINGER_LOWER_PROXIMITY
+    bb_lower_near = bb_distance_ratio <= float(bb_cfg['lower_proximity_pct'])
 
-    price_above_ma20 = latest_price >= ma20
-    price_near_ma20 = price_above_ma20 or ((ma20 - latest_price) / ma20 <= PRICE_NEAR_MA20_TOLERANCE)
+    price_vs_ma20_cfg = ma_cfg['price_vs_ma20']
+    ma5_vs_ma20_cfg = ma_cfg['ma5_vs_ma20']
+    ma20_vs_ma60_cfg = ma_cfg['ma20_vs_ma60']
 
-    ma5_above_ma20 = ma5 >= ma20
+    price_above_ma20 = latest_price >= ma20 if ma20 > 0 else False
+    price_vs_ma20_mode = str(price_vs_ma20_cfg['mode'])
+    price_vs_ma20_tolerance = float(price_vs_ma20_cfg.get('tolerance_pct', 0.02))
+    if price_vs_ma20_mode == 'above_only':
+        price_vs_ma20_ok = price_above_ma20
+    else:
+        price_vs_ma20_ok = price_above_ma20 or (ma20 > 0 and ((ma20 - latest_price) / ma20 <= price_vs_ma20_tolerance))
+
+    ma5_vs_ma20_mode = str(ma5_vs_ma20_cfg['mode'])
+    if ma5_vs_ma20_mode == 'ma5_above_ma20':
+        ma5_vs_ma20_ok = ma5 > ma20
+    else:
+        ma5_vs_ma20_ok = ma5 >= ma20
+
+    ma20_vs_ma60_mode = str(ma20_vs_ma60_cfg['mode'])
+    if ma20_vs_ma60_mode == 'ma20_above_ma60':
+        ma20_vs_ma60_ok = ma20 > ma60
+    else:
+        ma20_vs_ma60_ok = ma20 >= ma60
 
     foreign_confirmed_value = foreign_data.get('confirmed_aggregate_value')
     foreign_snapshot_value = foreign_data.get('snapshot_value')
@@ -106,76 +153,161 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
     confirmed_source_label = str(foreign_confirmed_row_source or foreign_source)
     foreign_net_buy_positive = (foreign_confirmed_value is not None) and (foreign_confirmed_value > 0)
 
-    trading_value_pass = latest_trading_value >= strategy.min_trading_value
-    market_cap_pass = stock.market_cap >= strategy.min_market_cap
-    market_pass = stock.market.upper() == strategy.market.upper()
+    trading_value_pass = latest_trading_value >= int(trading_value_cfg['min_trading_value'])
+    market_cap_pass = stock.market_cap >= int(market_cap_cfg['min_market_cap'])
+    market_pass = stock.market.upper() == target_market
 
     matched: list[str] = []
     failed: list[str] = []
 
-    score = 0
+    total_enabled_weight = 0.0
+    matched_weight = 0.0
+    mandatory_ok = True
 
-    if rsi_cross_ok:
-        score += SCORE_WEIGHTS['rsi_crossover']
-        matched.append('RSI(14) vs RSI signal 상향 돌파 확인')
-    else:
-        failed.append('RSI 상향 돌파 조건 미충족')
+    def apply_condition(
+        *,
+        enabled: bool,
+        mandatory: bool,
+        weight: float,
+        passed: bool,
+        success_reason: str,
+        fail_reason: str,
+        neutral: bool = False,
+    ) -> None:
+        nonlocal total_enabled_weight, matched_weight, mandatory_ok
+        if not enabled:
+            return
 
-    if rsi_in_range:
-        score += SCORE_WEIGHTS['rsi_target_range']
-        matched.append(f'RSI가 목표 구간({strategy.rsi_min}~{strategy.rsi_max})에 위치')
-    else:
-        failed.append('RSI 목표 구간 미충족')
+        if neutral:
+            matched.append(success_reason)
+            return
 
-    if bb_lower_near:
-        score += SCORE_WEIGHTS['bollinger_lower_proximity']
-        matched.append('볼린저 하단 근접 구간')
-    else:
-        failed.append('볼린저 하단 근접 조건 미충족')
+        normalized_weight = max(float(weight), 0.0)
+        total_enabled_weight += normalized_weight
 
-    if price_above_ma20:
-        score += SCORE_WEIGHTS['price_above_ma20']
-        matched.append('가격이 MA20 위')
-    elif price_near_ma20:
-        matched.append('가격이 MA20 근처에서 유지')
-    else:
-        failed.append('MA20 기준 과도한 이탈')
+        if passed:
+            matched_weight += normalized_weight
+            matched.append(success_reason)
+            return
 
-    if strategy.use_ma5_filter:
-        if ma5_above_ma20:
-            score += SCORE_WEIGHTS['ma5_above_ma20']
-            matched.append('MA5가 MA20 위')
+        failed.append(fail_reason)
+        if mandatory:
+            mandatory_ok = False
+
+    rsi_pass = rsi_cross_ok and rsi_in_range
+    apply_condition(
+        enabled=bool(rsi_cfg['enabled']),
+        mandatory=bool(rsi_cfg['mandatory']),
+        weight=float(rsi_cfg['weight']),
+        passed=rsi_pass,
+        success_reason=f"RSI 상향 돌파 + 목표구간({rsi_cfg['min']}~{rsi_cfg['max']}) 충족",
+        fail_reason='RSI 조건 미충족',
+    )
+
+    apply_condition(
+        enabled=bool(bb_cfg['enabled']),
+        mandatory=bool(bb_cfg['mandatory']),
+        weight=float(bb_cfg['weight']),
+        passed=bb_lower_near,
+        success_reason='볼린저 하단 근접',
+        fail_reason='볼린저 하단 근접 미충족',
+    )
+
+    apply_condition(
+        enabled=bool(price_vs_ma20_cfg['enabled']),
+        mandatory=bool(price_vs_ma20_cfg['mandatory']),
+        weight=float(price_vs_ma20_cfg['weight']),
+        passed=price_vs_ma20_ok,
+        success_reason='가격 vs MA20 충족',
+        fail_reason='가격 vs MA20 미충족',
+    )
+
+    apply_condition(
+        enabled=bool(ma5_vs_ma20_cfg['enabled']),
+        mandatory=bool(ma5_vs_ma20_cfg['mandatory']),
+        weight=float(ma5_vs_ma20_cfg['weight']),
+        passed=ma5_vs_ma20_ok,
+        success_reason='MA5 vs MA20 충족',
+        fail_reason='MA5 vs MA20 미충족',
+    )
+
+    apply_condition(
+        enabled=bool(ma20_vs_ma60_cfg['enabled']),
+        mandatory=bool(ma20_vs_ma60_cfg['mandatory']),
+        weight=float(ma20_vs_ma60_cfg['weight']),
+        passed=ma20_vs_ma60_ok,
+        success_reason='MA20 vs MA60 충족',
+        fail_reason='MA20 vs MA60 미충족',
+    )
+
+    foreign_enabled = bool(foreign_cfg['enabled'])
+    foreign_mandatory = bool(foreign_cfg['mandatory'])
+    foreign_weight = float(foreign_cfg['weight'])
+    foreign_policy = str(foreign_cfg.get('unavailable_policy', 'neutral'))
+
+    if foreign_enabled:
+        if foreign_confirmed_value is None:
+            if foreign_policy == 'neutral':
+                apply_condition(
+                    enabled=True,
+                    mandatory=False,
+                    weight=foreign_weight,
+                    passed=False,
+                    neutral=True,
+                    success_reason='외인 확정 데이터 없음(중립 처리)',
+                    fail_reason='',
+                )
+            elif foreign_policy == 'pass':
+                apply_condition(
+                    enabled=True,
+                    mandatory=foreign_mandatory,
+                    weight=foreign_weight,
+                    passed=True,
+                    success_reason='외인 데이터 미확보지만 정책상 통과',
+                    fail_reason='',
+                )
+            else:
+                apply_condition(
+                    enabled=True,
+                    mandatory=foreign_mandatory,
+                    weight=foreign_weight,
+                    passed=False,
+                    success_reason='',
+                    fail_reason='외인 데이터 미확보(실패 정책)',
+                )
         else:
-            failed.append('MA5 > MA20 미충족')
+            apply_condition(
+                enabled=True,
+                mandatory=foreign_mandatory,
+                weight=foreign_weight,
+                passed=foreign_net_buy_positive,
+                success_reason=f"외국인 최근 {foreign_cfg['days']}일 확정 순매수 우위",
+                fail_reason='외국인 확정 순매수 조건 미충족',
+            )
 
-    if foreign_confirmed_value is None:
-        matched.append('외인 확정 데이터 없음(중립 처리)')
-    elif foreign_net_buy_positive:
-        score += SCORE_WEIGHTS['foreign_net_buy']
-        matched.append(f'외국인 최근 {strategy.foreign_net_buy_days}일 확정 순매수 우위')
-    else:
-        failed.append('외국인 확정 순매수 조건 미충족')
+    apply_condition(
+        enabled=bool(market_cap_cfg['enabled']),
+        mandatory=bool(market_cap_cfg['mandatory']),
+        weight=float(market_cap_cfg['weight']),
+        passed=market_cap_pass,
+        success_reason='시가총액 기준 통과',
+        fail_reason='시가총액 조건 미충족',
+    )
 
-    if trading_value_pass:
-        score += SCORE_WEIGHTS['trading_value_pass']
-        matched.append('거래대금 기준 통과')
-    else:
-        failed.append('거래대금 기준 미달')
-
-    mandatory_ok = all(
-        [
-            market_pass,
-            market_cap_pass,
-            trading_value_pass,
-            rsi_cross_ok,
-            (price_near_ma20 if strategy.use_ma20_filter else True),
-        ]
+    apply_condition(
+        enabled=bool(trading_value_cfg['enabled']),
+        mandatory=bool(trading_value_cfg['mandatory']),
+        weight=float(trading_value_cfg['weight']),
+        passed=trading_value_pass,
+        success_reason='거래대금 기준 통과',
+        fail_reason='거래대금 기준 미달',
     )
 
     if not market_pass:
-        failed.append('시장 필터 미충족')
-    if not market_cap_pass:
-        failed.append('시가총액 조건 미충족')
+        mandatory_ok = False
+        failed.append('시장 필터 미충족(KOSPI only)')
+
+    score = int(round((matched_weight / total_enabled_weight) * 100)) if total_enabled_weight > 0 else 0
 
     grade = _grade_from_score(score, mandatory_ok)
 
@@ -198,7 +330,7 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
         'foreign_data_status': foreign_status,
         'foreign_data_source': f'confirmed:{confirmed_source_label}|snapshot:{foreign_snapshot_source}',
         'trading_value': latest_trading_value,
-        'score': int(score),
+        'score': score,
         'grade': grade,
         'matched_reasons_json': matched,
         'failed_reasons_json': failed,
@@ -208,6 +340,19 @@ def _evaluate_stock(strategy: Strategy, stock: StockMeta, bars: list[DailyBar], 
 
 def run_scan(db: Session, strategy: Strategy, run_type: str = 'manual') -> ScanRun:
     provider = get_market_data_provider()
+    strategy_config = normalize_strategy_config(strategy.strategy_config, legacy_source=strategy)
+    target_market = str(strategy_config.get('market') or strategy.market or 'KOSPI').upper()
+    categories = strategy_config['categories']
+    rsi_cfg = categories['rsi']
+    bb_cfg = categories['bollinger']
+    foreign_cfg = categories['foreign']
+
+    required_days = max(
+        120,
+        int(rsi_cfg['period']) + int(rsi_cfg['signal_period']) + int(rsi_cfg['cross_lookback_bars']) + 10,
+        int(bb_cfg['period']) + 70,
+    )
+    foreign_days = max(int(foreign_cfg['days']), 1)
 
     run = ScanRun(
         strategy_id=strategy.id,
@@ -223,18 +368,18 @@ def run_scan(db: Session, strategy: Strategy, run_type: str = 'manual') -> ScanR
     db.refresh(run)
 
     try:
-        stocks = provider.list_stocks(strategy.market)
+        stocks = provider.list_stocks(target_market)
         for stock in stocks:
             run.total_scanned += 1
             try:
-                bars = provider.get_daily_bars(stock.code, max(120, strategy.bb_period + 60, strategy.rsi_period + 30))
+                bars = provider.get_daily_bars(stock.code, required_days)
                 foreign_data = get_foreign_investor_context(
                     db,
                     provider,
                     stock.code,
-                    strategy.foreign_net_buy_days,
+                    foreign_days,
                 )
-                evaluated = _evaluate_stock(strategy, stock, bars, foreign_data)
+                evaluated = _evaluate_stock(strategy, strategy_config, stock, bars, foreign_data)
 
                 result = ScanResult(scan_run_id=run.id, strategy_id=strategy.id, **evaluated)
                 db.add(result)

@@ -11,6 +11,30 @@
 - 대시보드: 오늘 스캔 요약 + 전략별 최근 결과
 - Provider abstraction: `MarketDataProvider` + `MockMarketDataProvider` + `KisMarketDataProvider`
 
+## 전략 스키마 (Refactor)
+전략은 `strategy_config` JSON 기반으로 동작합니다.
+
+- 카테고리: `rsi`, `bollinger`, `ma`, `foreign`, `market_cap`, `trading_value`
+- 공통 개념: `enabled`, `mandatory`, `weight`
+- 점수: enabled 항목의 가중치 합 기준으로 정규화(0~100)
+- mandatory 항목 미충족 시 `EXCLUDED`
+- MA 기간은 고정(`5/20/60`), 해석만 설정 가능:
+  - `price_vs_ma20`
+  - `ma5_vs_ma20`
+  - `ma20_vs_ma60`
+
+### 레거시 필드 매핑
+기존 저장 전략(legacy 컬럼 기반)은 자동 매핑되어 동작합니다.
+
+- `market` -> `strategy_config.market`
+- `rsi_period/rsi_signal_period/rsi_min/rsi_max` -> `categories.rsi`
+- `bb_period/bb_std` -> `categories.bollinger`
+- `use_ma20_filter` -> `categories.ma.price_vs_ma20.enabled/mandatory`
+- `use_ma5_filter` -> `categories.ma.ma5_vs_ma20.enabled`
+- `foreign_net_buy_days` -> `categories.foreign.days`
+- `min_market_cap` -> `categories.market_cap.min_market_cap`
+- `min_trading_value` -> `categories.trading_value.min_trading_value`
+
 ## 이번 단계 스코프 정리
 - watchlist / journal 기능은 핵심 플로우에서 제외했습니다.
 - 기존 라우트/테이블은 호환성 때문에 유지하되, 메인 네비게이션과 핵심 카피에서는 비노출/비강조 처리했습니다.

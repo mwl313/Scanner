@@ -38,7 +38,12 @@ export default function StrategiesPage() {
         <Link href="/strategies/new"><button>새 전략</button></Link>
       </div>
 
-      {items.map((item) => (
+      {items.map((item) => {
+        const cfg = item.strategy_config?.categories;
+        const market = item.strategy_config?.market || item.market;
+        const rsiRange = cfg?.rsi ? `${cfg.rsi.min}~${cfg.rsi.max}` : `${item.rsi_min}~${item.rsi_max}`;
+        const bbText = cfg?.bollinger ? `${cfg.bollinger.period}/${cfg.bollinger.std}` : `${item.bb_period}/${item.bb_std}`;
+        return (
         <div className="card" key={item.id}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div>
@@ -52,10 +57,11 @@ export default function StrategiesPage() {
             </div>
           </div>
           <p className="helper">
-            market={item.market}, RSI={item.rsi_min}~{item.rsi_max}, BB={item.bb_period}/{item.bb_std}, interval={item.scan_interval_type}
+            market={market}, RSI={rsiRange}, BB={bbText}, interval={item.scan_interval_type}
           </p>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

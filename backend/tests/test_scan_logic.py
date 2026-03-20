@@ -5,6 +5,7 @@ from app.models.strategy import Strategy
 from app.services.auth_service import signup_user
 from app.services import scan_service
 from app.services.scan_service import run_scan
+from app.schemas.strategy import StrategyConfig
 
 
 
@@ -41,6 +42,7 @@ def test_scan_engine_runs_and_scores(db_session):
     results = db_session.scalars(select(ScanResult).where(ScanResult.scan_run_id == run.id)).all()
     assert len(results) == run.total_scanned
     assert any(item.score >= 40 for item in results)
+    assert all(0 <= item.score <= 100 for item in results)
 
 
 def test_scan_engine_uses_neutral_when_confirmed_foreign_missing(db_session, monkeypatch):
@@ -87,3 +89,41 @@ def test_scan_engine_uses_neutral_when_confirmed_foreign_missing(db_session, mon
     assert len(results) == run.total_scanned
     assert any('외인 확정 데이터 없음(중립 처리)' in (item.matched_reasons_json or []) for item in results)
     assert all(item.foreign_data_status == 'unavailable' for item in results)
+
+
+def test_scan_engine_excludes_when_mandatory_trading_value_fails(db_session):
+    user = signup_user(db_session, 'scan3@example.com', 'password123', 'password123')
+    config = StrategyConfig().model_dump()
+    config['categories']['trading_value']['min_trading_value'] = 10**15
+    config['categories']['trading_value']['mandatory'] = True
+
+    strategy = Strategy(
+        user_id=user.id,
+        name='scan3',
+        description='scan3',
+        is_active=True,
+        market='KOSPI',
+        min_market_cap=3000000000000,
+        min_trading_value=10000000000,
+        rsi_period=14,
+        rsi_signal_period=9,
+        rsi_min=30,
+        rsi_max=40,
+        bb_period=20,
+        bb_std=2,
+        use_ma5_filter=True,
+        use_ma20_filter=True,
+        foreign_net_buy_days=3,
+        scan_interval_type='eod',
+        strategy_config=config,
+    )
+    db_session.add(strategy)
+    db_session.commit()
+    db_session.refresh(strategy)
+
+    run = run_scan(db_session, strategy, 'manual')
+    results = db_session.scalars(select(ScanResult).where(ScanResult.scan_run_id == run.id)).all()
+
+    assert run.total_scanned > 0
+    assert len(results) == run.total_scanned
+    assert all(item.grade == 'EXCLUDED' for item in results)
