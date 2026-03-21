@@ -186,6 +186,10 @@ td {
   flex-wrap: wrap;
 }
 
+.section-header {
+  align-items: center;
+}
+
 .scan-result-compact {
   min-width: 0;
 }
@@ -313,6 +317,10 @@ td {
 
   .scan-result-compact .reason-col {
     min-width: 220px;
+  }
+
+  .section-header {
+    align-items: stretch;
   }
 
   .detail-overlay {

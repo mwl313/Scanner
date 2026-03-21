@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRequireAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
+import { buildCsvFilename, convertScanResultsToCsv, downloadCsv } from '../../lib/csv';
 
 const GRADE_OPTIONS = ['A', 'B', 'C', 'EXCLUDED'];
 
@@ -219,6 +220,18 @@ export default function ScansPage() {
     setDetailLoading(false);
   };
 
+  const handleDownloadCsv = () => {
+    if (filteredResults.length === 0) return;
+
+    const rowsForExport = filteredResults.map((item) => ({
+      ...item,
+      status: item.grade === 'EXCLUDED' ? '제외' : '통과',
+      positive_points: buildPositivePoints(item).join(' | '),
+    }));
+    const csvText = convertScanResultsToCsv(rowsForExport);
+    downloadCsv(csvText, buildCsvFilename('scan-results'));
+  };
+
   if (loading) return <p>로딩중...</p>;
 
   return (
@@ -307,6 +320,18 @@ export default function ScansPage() {
               </div>
             </details>
           </div>
+        </div>
+
+        <div className="row section-header" style={{ justifyContent: 'space-between', marginTop: 10 }}>
+          <h3 style={{ margin: 0 }}>결과 목록</h3>
+          <button
+            className="secondary"
+            onClick={handleDownloadCsv}
+            disabled={filteredResults.length === 0}
+            title={filteredResults.length === 0 ? '다운로드할 결과가 없습니다.' : '현재 정렬/필터 결과를 CSV로 다운로드'}
+          >
+            결과 CSV 다운로드
+          </button>
         </div>
 
         {error && <p className="error">{error}</p>}
