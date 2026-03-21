@@ -1,8 +1,35 @@
 "use client";
 
 import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 
 export default function TopNav({ links, pathname, userEmail, onLogout, onOpenSettings }) {
+  const navRef = useRef(null);
+  const [indicator, setIndicator] = useState({ left: 0, width: 0, visible: false });
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      const root = navRef.current;
+      if (!root) return;
+      const active = root.querySelector('.top-nav-link.is-active');
+      if (!active) {
+        setIndicator((prev) => ({ ...prev, visible: false }));
+        return;
+      }
+      const rootRect = root.getBoundingClientRect();
+      const activeRect = active.getBoundingClientRect();
+      setIndicator({
+        left: activeRect.left - rootRect.left,
+        width: activeRect.width,
+        visible: true,
+      });
+    };
+
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [pathname]);
+
   return (
     <header className="top-nav-shell">
       <div className="top-nav-inner">
@@ -10,11 +37,19 @@ export default function TopNav({ links, pathname, userEmail, onLogout, onOpenSet
           <Link href="/dashboard" className="top-nav-brand">
             Informed Curator
           </Link>
-          <nav className="top-nav-links" aria-label="주요 메뉴">
+          <nav className="top-nav-links" aria-label="주요 메뉴" ref={navRef}>
+            <span
+              className="top-nav-indicator"
+              style={{
+                width: indicator.width,
+                transform: `translateX(${indicator.left}px)`,
+                opacity: indicator.visible ? 1 : 0,
+              }}
+            />
             {links.map((item) => {
               const active = pathname.startsWith(item.href);
               return (
-                <Link key={item.href} href={item.href} className={active ? 'is-active' : ''}>
+                <Link key={item.href} href={item.href} className={`top-nav-link ${active ? 'is-active' : ''}`.trim()}>
                   {item.label}
                 </Link>
               );

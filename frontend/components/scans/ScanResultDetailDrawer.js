@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import Drawer from '../ui/Drawer';
 import SurfaceCard from '../ui/SurfaceCard';
 import GradeBadge from './GradeBadge';
@@ -31,7 +33,7 @@ export default function ScanResultDetailDrawer({ open, onClose, loading, error, 
                 <p className="helper">{detail.stock_code} · {detail.market}</p>
               </div>
               <div className="detail-hero-side">
-                <ScorePill score={detail.score} />
+                <ScorePill score={detail.score} grade={detail.grade} />
                 <GradeBadge grade={detail.grade} />
               </div>
             </div>
@@ -46,7 +48,7 @@ export default function ScanResultDetailDrawer({ open, onClose, loading, error, 
               ) : (
                 <button className="btn btn-ghost" disabled>Toss</button>
               )}
-              <a className="btn btn-ghost" href={`/stocks/${detail.stock_code}`}>종목 페이지</a>
+              <Link className="btn btn-ghost" href={`/stocks/${detail.stock_code}`}>종목 페이지</Link>
             </div>
           </SurfaceCard>
 

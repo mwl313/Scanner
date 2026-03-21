@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 
 import Drawer from '../ui/Drawer';
 import SurfaceCard from '../ui/SurfaceCard';
+import PageTransition from '../ui/PageTransition';
 import TopNav from './TopNav';
 import MobileBottomNav from './MobileBottomNav';
 import { apiRequest } from '../../lib/api';
@@ -52,7 +53,9 @@ export default function AppShell({ children }) {
       )}
 
       <main className={`app-main ${hideChrome ? 'auth-main' : ''}`}>
-        <div className="app-container">{children}</div>
+        <div className="app-container">
+          <PageTransition key={pathname}>{children}</PageTransition>
+        </div>
       </main>
 
       <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="설정" side="right" width="420px">

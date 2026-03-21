@@ -1,92 +1,120 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+
+import PageHeader from '../../../components/layout/PageHeader';
+import MiniPriceChart from '../../../components/stocks/MiniPriceChart';
+import StockHero from '../../../components/stocks/StockHero';
+import SurfaceCard from '../../../components/ui/SurfaceCard';
+import LoadingState from '../../../components/ui/LoadingState';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useRequireAuth } from '../../../lib/auth';
 import { apiRequest } from '../../../lib/api';
+import {
+  failReasonToPlainKorean,
+  formatForeignValue,
+  formatNumber,
+  maStatus,
+  reasonToPlainKorean,
+} from '../../../lib/formatters';
 
 export default function StockDetailPage() {
   const { loading } = useRequireAuth();
   const params = useParams();
   const [detail, setDetail] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!loading && params.code) {
-      apiRequest(`/api/stocks/${params.code}`)
-        .then(setDetail);
-    }
+    if (loading || !params.code) return;
+    apiRequest(`/api/stocks/${params.code}`)
+      .then(setDetail)
+      .catch((err) => setError(err.message || '종목 상세를 불러오지 못했습니다.'));
   }, [loading, params.code]);
 
-  if (loading || !detail) return <p>로딩중...</p>;
-  const foreignStatusLabel = detail.foreign_data_status === 'confirmed'
-    ? ((detail.foreign_data_source || '').includes('krx_confirmed_daily') ? '확정(KRX)' : '확정')
-    : (detail.foreign_net_buy_snapshot_value == null ? '없음' : '미확정(스냅샷)');
+  const positivePoints = useMemo(() => {
+    if (!detail) return [];
+    return (detail.matched_reasons || []).map(reasonToPlainKorean).filter(Boolean);
+  }, [detail]);
+
+  const failedPoints = useMemo(() => {
+    if (!detail) return [];
+    return (detail.failed_reasons || []).map(failReasonToPlainKorean).filter(Boolean);
+  }, [detail]);
+
+  if (loading) return <LoadingState message="종목 상세를 불러오는 중..." />;
+  if (error) return <EmptyState title="종목 정보를 가져오지 못했습니다." description={error} />;
+  if (!detail) return <LoadingState message="지표를 준비하는 중..." />;
 
   return (
-    <div>
-      <h2>{detail.stock_name} ({detail.stock_code})</h2>
+    <div className="page-stack">
+      <PageHeader
+        title="Stock Detail"
+        subtitle="스캔 결과의 근거 지표와 외인 데이터 상태를 종목 단위로 확인합니다."
+        actions={<Link href="/scans" className="btn btn-ghost">스캔 콘솔로</Link>}
+      />
 
-      <div className="grid-3">
-        <div className="card"><h4>가격</h4><p>{Number(detail.price).toLocaleString()}</p></div>
-        <div className="card"><h4>점수/등급</h4><p>{detail.score} / {detail.grade}</p></div>
-        <div className="card"><h4>거래대금</h4><p>{Number(detail.trading_value).toLocaleString()}</p></div>
-      </div>
+      <StockHero detail={detail} />
 
-      <div className="card">
-        <h3>지표</h3>
-        <div className="grid-3">
-          <p>MA5: {Number(detail.ma5).toFixed(2)}</p>
-          <p>MA20: {Number(detail.ma20).toFixed(2)}</p>
-          <p>MA60: {Number(detail.ma60).toFixed(2)}</p>
-          <p>BB Upper: {Number(detail.bb_upper).toFixed(2)}</p>
-          <p>BB Mid: {Number(detail.bb_mid).toFixed(2)}</p>
-          <p>BB Lower: {Number(detail.bb_lower).toFixed(2)}</p>
-          <p>RSI: {Number(detail.rsi).toFixed(2)}</p>
-          <p>RSI Signal: {Number(detail.rsi_signal).toFixed(2)}</p>
-          <p>외인 최근 확정합: {detail.foreign_net_buy_confirmed_value == null ? '-' : Number(detail.foreign_net_buy_confirmed_value).toLocaleString()}</p>
-          <p>외인 장중 스냅샷: {detail.foreign_net_buy_snapshot_value == null ? '-' : Number(detail.foreign_net_buy_snapshot_value).toLocaleString()}</p>
-          <p>외인 데이터 상태: {foreignStatusLabel}</p>
-          <p>외인 데이터 소스: {detail.foreign_data_source || '-'}</p>
-        </div>
-      </div>
+      <section className="stock-detail-grid">
+        <SurfaceCard className="panel" tone="soft">
+          <div className="panel-header">
+            <h3>최근 종가 흐름</h3>
+          </div>
+          <MiniPriceChart values={detail.recent_closes} />
+        </SurfaceCard>
 
-      <div className="card">
-        <h3>최근 종가(간단 차트)</h3>
-        <div className="row" style={{ alignItems: 'flex-end', gap: 2, minHeight: 120 }}>
-          {detail.recent_closes.map((value, idx) => {
-            const min = Math.min(...detail.recent_closes);
-            const max = Math.max(...detail.recent_closes);
-            const ratio = max > min ? (value - min) / (max - min) : 0.5;
-            return (
-              <div
-                key={idx}
-                title={value.toLocaleString()}
-                style={{
-                  width: 6,
-                  height: `${Math.max(8, ratio * 100)}px`,
-                  background: '#0b6da8',
-                  borderRadius: 2,
-                }}
-              />
-            );
-          })}
-        </div>
-      </div>
+        <SurfaceCard className="panel" tone="soft">
+          <div className="panel-header">
+            <h3>핵심 지표</h3>
+          </div>
+          <div className="detail-metric-grid">
+            <p>RSI / Signal: {Number(detail.rsi).toFixed(2)} / {Number(detail.rsi_signal).toFixed(2)}</p>
+            <p>MA5 / MA20 / MA60: {Number(detail.ma5).toFixed(2)} / {Number(detail.ma20).toFixed(2)} / {Number(detail.ma60).toFixed(2)}</p>
+            <p>MA 상태: {maStatus(detail)}</p>
+            <p>볼린저 하단: {Number(detail.bb_lower).toFixed(2)}</p>
+            <p>현재가-하단 거리: {(((Number(detail.price) - Number(detail.bb_lower)) / Number(detail.bb_lower)) * 100).toFixed(2)}%</p>
+            <p>외인 확정합: {formatForeignValue(detail.foreign_net_buy_confirmed_value)}</p>
+            <p>외인 장중 스냅샷: {formatForeignValue(detail.foreign_net_buy_snapshot_value)}</p>
+            <p>외인 데이터 소스: {detail.foreign_data_source || '-'}</p>
+            <p>가격: {formatNumber(detail.price)}</p>
+            <p>거래대금: {formatNumber(detail.trading_value)}</p>
+          </div>
+        </SurfaceCard>
+      </section>
 
-      <div className="grid-2">
-        <div className="card">
-          <h3>통과 조건</h3>
-          <ul>
-            {detail.matched_reasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
-          </ul>
-        </div>
-        <div className="card">
-          <h3>미충족 조건</h3>
-          <ul>
-            {detail.failed_reasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
-          </ul>
-        </div>
-      </div>
+      <section className="stock-insight-grid">
+        <SurfaceCard className="panel" tone="soft">
+          <div className="panel-header">
+            <h3>긍정 포인트</h3>
+          </div>
+          {positivePoints.length === 0 ? (
+            <p className="helper">긍정 포인트가 없습니다.</p>
+          ) : (
+            <ul className="reason-list">
+              {positivePoints.map((reason, idx) => (
+                <li key={idx}>{reason}</li>
+              ))}
+            </ul>
+          )}
+        </SurfaceCard>
+
+        <SurfaceCard className="panel" tone="soft">
+          <div className="panel-header">
+            <h3>미충족 조건</h3>
+          </div>
+          {failedPoints.length === 0 ? (
+            <p className="helper">미충족 조건이 없습니다.</p>
+          ) : (
+            <ul className="reason-list">
+              {failedPoints.map((reason, idx) => (
+                <li key={idx}>{reason}</li>
+              ))}
+            </ul>
+          )}
+        </SurfaceCard>
+      </section>
     </div>
   );
 }

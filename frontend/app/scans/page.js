@@ -30,6 +30,7 @@ export default function ScansPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
   const [detail, setDetail] = useState(null);
+  const [selectedStockCode, setSelectedStockCode] = useState('');
 
   const loadBase = async () => {
     const [strategyItems, runItems] = await Promise.all([apiRequest('/api/strategies'), apiRequest('/api/scans')]);
@@ -56,6 +57,10 @@ export default function ScansPage() {
   useEffect(() => {
     if (!loading) loadResults().catch((err) => setError(err.message));
   }, [loading, selectedRunId]);
+
+  useEffect(() => {
+    setSelectedStockCode('');
+  }, [selectedRunId]);
 
   const runScanNow = async () => {
     setError('');
@@ -103,6 +108,7 @@ export default function ScansPage() {
   };
 
   const openDetail = async (stockCode) => {
+    setSelectedStockCode(stockCode);
     setDetailOpen(true);
     setDetailLoading(true);
     setDetailError('');
@@ -165,7 +171,12 @@ export default function ScansPage() {
         {!selectedRunId ? (
           <EmptyState title="선택된 run이 없습니다." description="스캔 실행 기록에서 run을 선택해 주세요." />
         ) : (
-          <ScanResultsList items={filteredResults} buildPositivePoints={buildPositivePoints} onOpenDetail={openDetail} />
+          <ScanResultsList
+            items={filteredResults}
+            buildPositivePoints={buildPositivePoints}
+            onOpenDetail={openDetail}
+            selectedStockCode={selectedStockCode}
+          />
         )}
       </SurfaceCard>
 
@@ -176,6 +187,7 @@ export default function ScansPage() {
           setDetail(null);
           setDetailError('');
           setDetailLoading(false);
+          setSelectedStockCode('');
         }}
         loading={detailLoading}
         error={detailError}
