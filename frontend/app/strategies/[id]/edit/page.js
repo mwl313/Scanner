@@ -33,7 +33,12 @@ export default function EditStrategyPage() {
   return (
     <div>
       <h2>전략 수정</h2>
-      <StrategyForm initial={strategy} submitLabel="저장" onSubmit={onSubmit} />
+      <StrategyForm
+        initial={strategy}
+        submitLabel="저장"
+        onSubmit={onSubmit}
+        onCancel={() => router.push('/strategies')}
+      />
     </div>
   );
 }

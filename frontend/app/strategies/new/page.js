@@ -24,7 +24,7 @@ export default function NewStrategyPage() {
   return (
     <div>
       <h2>전략 생성</h2>
-      <StrategyForm submitLabel="저장" onSubmit={onSubmit} />
+      <StrategyForm submitLabel="저장" onSubmit={onSubmit} onCancel={() => router.push('/strategies')} />
     </div>
   );
 }
