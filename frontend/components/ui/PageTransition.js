@@ -54,7 +54,6 @@ export default function PageTransition({ children, pathname }) {
 
     if ((pathname || '') === currentPathRef.current) {
       currentNodeRef.current = children;
-      setState((prev) => ({ ...prev, currentNode: children, currentPath: pathname || prev.currentPath }));
       return undefined;
     }
 
@@ -105,6 +104,7 @@ export default function PageTransition({ children, pathname }) {
   }, [children, direction, pathname, prefersReducedMotion]);
 
   const directionLabel = state.direction > 0 ? 'forward' : state.direction < 0 ? 'backward' : 'neutral';
+  const currentLayerNode = state.previousNode ? state.currentNode : children;
 
   return (
     <div
@@ -117,7 +117,7 @@ export default function PageTransition({ children, pathname }) {
           {state.previousNode}
         </div>
       )}
-      <div className="page-transition-layer page-transition-layer--current">{state.currentNode}</div>
+      <div className="page-transition-layer page-transition-layer--current">{currentLayerNode}</div>
     </div>
   );
 }

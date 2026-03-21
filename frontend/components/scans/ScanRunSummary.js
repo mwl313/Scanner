@@ -1,7 +1,7 @@
 import FadeIn from '../ui/FadeIn';
 import SurfaceCard from '../ui/SurfaceCard';
 import StatusChip from '../ui/StatusChip';
-import { formatDateTime } from '../../lib/formatters';
+import { formatDateTime, formatDateTimeCompact } from '../../lib/formatters';
 
 function runStatusTone(status) {
   if (!status) return 'neutral';
@@ -19,7 +19,7 @@ export default function ScanRunSummary({ run, strategyName }) {
           <div className="scan-run-summary__title-wrap">
             <div>
               <p className="kicker">ACTIVE RUN</p>
-              <h3>#{run.id} · {strategyName || `전략 ${run.strategy_id}`}</h3>
+              <h3>{formatDateTimeCompact(run.started_at)} · {strategyName || `전략 ${run.strategy_id}`}</h3>
               <p className="helper">{formatDateTime(run.started_at)} · {run.run_type}</p>
             </div>
             <div className="scan-run-summary__stats">

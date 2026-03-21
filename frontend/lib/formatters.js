@@ -21,8 +21,8 @@ export function formatDateTimeCompact(value) {
 }
 
 export function formatScanRunLabel(run) {
-  if (!run) return '#-';
-  return `#${run.id} · ${formatDateTimeCompact(run.started_at)}`;
+  if (!run) return '-';
+  return formatDateTimeCompact(run.started_at);
 }
 
 export function formatPercent(value, digits = 2) {

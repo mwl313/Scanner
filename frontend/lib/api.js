@@ -12,10 +12,30 @@ export async function apiRequest(path, options = {}) {
     return null;
   }
 
-  const data = await response.json();
+  const contentType = response.headers.get('content-type') || '';
+  let data = null;
+  let rawText = '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+  } else {
+    rawText = await response.text();
+  }
+
   if (!response.ok) {
-    const message = data?.error?.message || 'Request failed';
+    const fallback = rawText
+      ? rawText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+      : '';
+    const message =
+      data?.error?.message ||
+      fallback ||
+      `Request failed (${response.status})`;
     throw new Error(message);
   }
+
   return data;
 }

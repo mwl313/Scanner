@@ -252,8 +252,10 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
     confirmed_source_label = str(foreign_confirmed_row_source or foreign_source)
     foreign_net_buy_positive = (foreign_confirmed_value is not None) and (foreign_confirmed_value > 0)
 
-    trading_value_pass = latest_trading_value >= int(trading_value_cfg['min_trading_value'])
-    market_cap_pass = stock.market_cap >= int(market_cap_cfg['min_market_cap'])
+    min_trading_value = int(trading_value_cfg['min_trading_value'])
+    min_market_cap = int(market_cap_cfg['min_market_cap'])
+    trading_value_pass = latest_trading_value >= min_trading_value
+    market_cap_pass = stock.market_cap >= min_market_cap
     market_pass = stock.market.upper() == target_market
 
     matched: list[str] = []
@@ -389,8 +391,8 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
         mandatory=bool(market_cap_cfg['mandatory']),
         weight=float(market_cap_cfg['weight']),
         passed=market_cap_pass,
-        success_reason='시가총액 기준 통과',
-        fail_reason='시가총액 조건 미충족',
+        success_reason=f'시가총액 충족: {int(stock.market_cap):,} >= {min_market_cap:,}',
+        fail_reason=f'시가총액 미충족: {int(stock.market_cap):,} < {min_market_cap:,}',
     )
 
     apply_condition(
@@ -398,8 +400,8 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
         mandatory=bool(trading_value_cfg['mandatory']),
         weight=float(trading_value_cfg['weight']),
         passed=trading_value_pass,
-        success_reason='거래대금 기준 통과',
-        fail_reason='거래대금 기준 미달',
+        success_reason=f'거래대금 충족: {int(latest_trading_value):,} >= {min_trading_value:,}',
+        fail_reason=f'거래대금 미충족: {int(latest_trading_value):,} < {min_trading_value:,}',
     )
 
     if not market_pass:
