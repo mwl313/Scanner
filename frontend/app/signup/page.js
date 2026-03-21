@@ -31,23 +31,23 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="card" style={{ maxWidth: 420, margin: '40px auto' }}>
+    <div className="card auth-card">
       <h2>회원가입</h2>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={onSubmit} className="auth-form">
         <label>이메일</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
 
-        <label style={{ marginTop: 10 }}>비밀번호</label>
+        <label className="auth-field-label">비밀번호</label>
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
 
-        <label style={{ marginTop: 10 }}>비밀번호 확인</label>
+        <label className="auth-field-label">비밀번호 확인</label>
         <input type="password" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} required minLength={8} />
 
         {error && <p className="error">{error}</p>}
 
-        <button type="submit" style={{ marginTop: 12 }}>가입</button>
+        <button type="submit" className="auth-submit-btn">가입</button>
       </form>
-      <p className="helper" style={{ marginTop: 12 }}>
+      <p className="helper auth-footer">
         이미 계정이 있다면 <Link href="/login">로그인</Link>
       </p>
     </div>

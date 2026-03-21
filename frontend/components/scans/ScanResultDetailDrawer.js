@@ -42,7 +42,7 @@ export default function ScanResultDetailDrawer({ open, onClose, loading, error, 
               <div><span className="metric-label">거래대금</span><strong>{formatNumber(detail.trading_value)}</strong></div>
               <div><span className="metric-label">MA 상태</span><strong>{maStatus(detail)}</strong></div>
             </div>
-            <div className="action-group" style={{ marginTop: 10 }}>
+            <div className="action-group detail-hero-actions">
               {tossUrl ? (
                 <a className="btn btn-ghost" href={tossUrl} target="_blank" rel="noopener noreferrer">Toss</a>
               ) : (

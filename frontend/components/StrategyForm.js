@@ -262,12 +262,12 @@ export default function StrategyForm({ initial, onSubmit, submitLabel, onCancel 
           </div>
         </div>
 
-        <div style={{ marginTop: 12 }}>
+        <div className="strategy-mt-md">
           <label>설명</label>
           <textarea value={form.description || ''} onChange={(e) => setValue('description', e.target.value)} rows={3} />
         </div>
 
-        <div className="strategy-fields-grid cols-3" style={{ marginTop: 12 }}>
+        <div className="strategy-fields-grid cols-3 strategy-mt-md">
           <div>
             <label>활성화</label>
             <SwitchControl checked={form.is_active} onChange={(e) => setValue('is_active', e.target.checked)} label={form.is_active ? '사용' : '미사용'} />
@@ -322,7 +322,7 @@ export default function StrategyForm({ initial, onSubmit, submitLabel, onCancel 
             <input type="number" value={cfg.rsi.cross_lookback_bars} onChange={(e) => setConfigValue(['categories', 'rsi', 'cross_lookback_bars'], Number(e.target.value))} />
           </div>
         </div>
-        <div className="strategy-fields-grid cols-2" style={{ marginTop: 10 }}>
+        <div className="strategy-fields-grid cols-2 strategy-mt-sm">
           <div>
             <label>RSI 최소</label>
             <input type="number" value={cfg.rsi.min} onChange={(e) => setConfigValue(['categories', 'rsi', 'min'], Number(e.target.value))} />
