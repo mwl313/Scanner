@@ -36,8 +36,24 @@ export default function ScansPage() {
     const [strategyItems, runItems] = await Promise.all([apiRequest('/api/strategies'), apiRequest('/api/scans')]);
     setStrategies(strategyItems || []);
     setRuns(runItems || []);
-    if (!selectedStrategyId && strategyItems?.length > 0) setSelectedStrategyId(String(strategyItems[0].id));
-    if (!selectedRunId && runItems?.length > 0) setSelectedRunId(String(runItems[0].id));
+    const strategyIds = new Set((strategyItems || []).map((item) => String(item.id)));
+    const runIds = new Set((runItems || []).map((item) => String(item.id)));
+
+    if (strategyItems?.length > 0) {
+      if (!selectedStrategyId || !strategyIds.has(String(selectedStrategyId))) {
+        setSelectedStrategyId(String(strategyItems[0].id));
+      }
+    } else if (selectedStrategyId) {
+      setSelectedStrategyId('');
+    }
+
+    if (runItems?.length > 0) {
+      if (!selectedRunId || !runIds.has(String(selectedRunId))) {
+        setSelectedRunId(String(runItems[0].id));
+      }
+    } else if (selectedRunId) {
+      setSelectedRunId('');
+    }
   };
 
   const loadResults = async () => {
@@ -68,6 +84,21 @@ export default function ScansPage() {
       method: 'POST',
       body: JSON.stringify({ strategy_id: Number(selectedStrategyId), run_type: 'manual' }),
     });
+    await loadBase();
+  };
+
+  const deleteSelectedRun = async () => {
+    if (!selectedRunId) return;
+    if (!window.confirm(`Run #${selectedRunId}를 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
+
+    setError('');
+    await apiRequest(`/api/scans/${selectedRunId}`, { method: 'DELETE' });
+    setResults([]);
+    setDetailOpen(false);
+    setDetail(null);
+    setDetailError('');
+    setDetailLoading(false);
+    setSelectedStockCode('');
     await loadBase();
   };
 
@@ -151,8 +182,10 @@ export default function ScansPage() {
         onToggleAllGrades={toggleAllGrades}
         onToggleGrade={toggleGrade}
         onRunNow={runScanNow}
+        onDeleteRun={deleteSelectedRun}
         onDownloadCsv={handleDownloadCsv}
         canDownload={filteredResults.length > 0}
+        canDeleteRun={Boolean(selectedRunId)}
         gradeOptions={GRADE_OPTIONS}
       />
 

@@ -54,7 +54,7 @@ export default function AppShell({ children }) {
 
       <main className={`app-main ${hideChrome ? 'auth-main' : ''}`}>
         <div className="app-container">
-          <PageTransition key={pathname}>{children}</PageTransition>
+          <PageTransition pathname={pathname || ''}>{children}</PageTransition>
         </div>
       </main>
 

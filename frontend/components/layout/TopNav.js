@@ -33,29 +33,24 @@ export default function TopNav({ links, pathname, userEmail, onLogout, onOpenSet
   return (
     <header className="top-nav-shell">
       <div className="top-nav-inner">
-        <div className="top-nav-brand-wrap">
-          <Link href="/dashboard" className="top-nav-brand">
-            Informed Curator
-          </Link>
-          <nav className="top-nav-links" aria-label="주요 메뉴" ref={navRef}>
-            <span
-              className="top-nav-indicator"
-              style={{
-                width: indicator.width,
-                transform: `translateX(${indicator.left}px)`,
-                opacity: indicator.visible ? 1 : 0,
-              }}
-            />
-            {links.map((item) => {
-              const active = pathname.startsWith(item.href);
-              return (
-                <Link key={item.href} href={item.href} className={`top-nav-link ${active ? 'is-active' : ''}`.trim()}>
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+        <nav className="top-nav-links" aria-label="주요 메뉴" ref={navRef}>
+          <span
+            className="top-nav-indicator"
+            style={{
+              width: indicator.width,
+              transform: `translateX(${indicator.left}px)`,
+              opacity: indicator.visible ? 1 : 0,
+            }}
+          />
+          {links.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link key={item.href} href={item.href} className={`top-nav-link ${active ? 'is-active' : ''}`.trim()}>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
         <div className="top-nav-actions">
           <div className="live-chip">

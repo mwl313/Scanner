@@ -8,7 +8,7 @@ import usePresence from './usePresence';
 export default function Drawer({ open, onClose, title, children, side = 'right', width = '520px' }) {
   const closeButtonRef = useRef(null);
   const lastFocusedElementRef = useRef(null);
-  const { mounted, visible } = usePresence(open, { exitDuration: MOTION.durationBase });
+  const { mounted, visible } = usePresence(open, { exitDuration: MOTION.durationSlow });
 
   useEffect(() => {
     if (!mounted) return undefined;

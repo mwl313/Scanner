@@ -13,8 +13,10 @@ export default function ScanToolbar({
   onToggleAllGrades,
   onToggleGrade,
   onRunNow,
+  onDeleteRun,
   onDownloadCsv,
   canDownload,
+  canDeleteRun,
   gradeOptions,
 }) {
   const allSelected = selectedGrades.length === gradeOptions.length;
@@ -36,13 +38,19 @@ export default function ScanToolbar({
 
         <div>
           <label>스캔 Run</label>
-          <select value={selectedRunId} onChange={(e) => onChangeRun(e.target.value)}>
-            {runs.map((run) => (
-              <option key={run.id} value={run.id}>
-                #{run.id} · {run.status} · matched {run.total_matched}
-              </option>
-            ))}
-          </select>
+          <div className="scan-run-control">
+            <select value={selectedRunId} onChange={(e) => onChangeRun(e.target.value)}>
+              {runs.length === 0 && <option value="">Run 없음</option>}
+              {runs.map((run) => (
+                <option key={run.id} value={run.id}>
+                  #{run.id} · {run.status} · matched {run.total_matched}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="btn btn-danger scan-run-delete-btn" onClick={onDeleteRun} disabled={!canDeleteRun}>
+              삭제
+            </button>
+          </div>
         </div>
 
         <div>

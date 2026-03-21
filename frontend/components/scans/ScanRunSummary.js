@@ -1,6 +1,5 @@
 import FadeIn from '../ui/FadeIn';
 import SurfaceCard from '../ui/SurfaceCard';
-import MetricCard from '../ui/MetricCard';
 import StatusChip from '../ui/StatusChip';
 import { formatDateTime } from '../../lib/formatters';
 
@@ -15,19 +14,21 @@ export default function ScanRunSummary({ run, strategyName }) {
   if (!run) return null;
   return (
     <FadeIn delay={50}>
-      <SurfaceCard className="scan-run-summary" tone="soft">
+      <SurfaceCard className="scan-run-summary scan-run-summary--compact" tone="soft">
         <div className="scan-run-summary__header">
-          <div>
-            <p className="kicker">ACTIVE RUN</p>
-            <h3>#{run.id} · {strategyName || `전략 ${run.strategy_id}`}</h3>
-            <p className="helper">{formatDateTime(run.started_at)} · {run.run_type}</p>
+          <div className="scan-run-summary__title-wrap">
+            <div>
+              <p className="kicker">ACTIVE RUN</p>
+              <h3>#{run.id} · {strategyName || `전략 ${run.strategy_id}`}</h3>
+              <p className="helper">{formatDateTime(run.started_at)} · {run.run_type}</p>
+            </div>
+            <div className="scan-run-summary__stats">
+              <span className="status-chip status-chip--neutral">Scanned {run.total_scanned}</span>
+              <span className="status-chip status-chip--neutral">Matched {run.total_matched}</span>
+              <span className="status-chip status-chip--neutral">Failed {run.failed_count}</span>
+            </div>
           </div>
           <StatusChip label={run.status} tone={runStatusTone(run.status)} />
-        </div>
-        <div className="scan-run-summary__metrics">
-          <MetricCard title="Scanned" value={run.total_scanned} />
-          <MetricCard title="Matched" value={run.total_matched} tone="soft" />
-          <MetricCard title="Failed" value={run.failed_count} tone="soft" />
         </div>
       </SurfaceCard>
     </FadeIn>
