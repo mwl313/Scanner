@@ -425,6 +425,12 @@ def get_scan_run_or_404(db: Session, user: User, run_id: int) -> ScanRun:
 
 
 
+def delete_scan_run(db: Session, user: User, run_id: int) -> None:
+    run = get_scan_run_or_404(db, user, run_id)
+    db.delete(run)
+    db.commit()
+
+
 def _apply_sort(stmt: Select[tuple[ScanResult]], sort_by: str, sort_order: str) -> Select[tuple[ScanResult]]:
     mapping = {
         'score': ScanResult.score,

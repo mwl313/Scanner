@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+
+import Popover from './ui/Popover';
 
 const defaultStrategyConfig = {
   version: 1,
@@ -99,48 +101,24 @@ function normalizeInitial(initial) {
 }
 
 function InfoPopover({ title, description }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const onMouseDown = (event) => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
-
   return (
-    <span className="info-popover" ref={rootRef}>
-      <button
-        type="button"
-        className="info-trigger"
-        aria-label={`${title} 설명 보기`}
-        onClick={() => setOpen((prev) => !prev)}
-      >
-        i
-      </button>
-      {open && (
-        <div className="info-panel" role="dialog" aria-label={`${title} 설명`}>
+    <Popover
+      align="right"
+      panelClassName="info-panel"
+      ariaLabel={`${title} 설명 보기`}
+      trigger={({ onClick, open, ...rest }) => (
+        <button type="button" className="info-trigger" onClick={onClick} data-open={open ? 'true' : 'false'} {...rest}>
+          i
+        </button>
+      )}
+    >
+      <div role="dialog" aria-label={`${title} 설명`}>
+        <div className="info-panel-inner">
           <p className="info-title">{title}</p>
           <p>{description}</p>
         </div>
-      )}
-    </span>
+      </div>
+    </Popover>
   );
 }
 
@@ -195,7 +173,10 @@ function RuleCard({
           <h3>{title}</h3>
           <InfoPopover title={title} description={description} />
         </div>
-        <SwitchControl checked={enabled} onChange={onEnabledChange} label="사용" />
+        <div className="strategy-section-header-right">
+          {mandatory && <span className="status-chip status-chip--neutral">필수</span>}
+          <SwitchControl checked={enabled} onChange={onEnabledChange} label="사용" />
+        </div>
       </div>
 
       <RuleMetaRow

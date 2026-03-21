@@ -1,10 +1,11 @@
 from sqlalchemy import select
 
 from app.models.scan_result import ScanResult
+from app.models.scan_run import ScanRun
 from app.models.strategy import Strategy
 from app.services.auth_service import signup_user
 from app.services import scan_service
-from app.services.scan_service import run_scan
+from app.services.scan_service import delete_scan_run, run_scan
 from app.schemas.strategy import StrategyConfig
 
 
@@ -127,3 +128,38 @@ def test_scan_engine_excludes_when_mandatory_trading_value_fails(db_session):
     assert run.total_scanned > 0
     assert len(results) == run.total_scanned
     assert all(item.grade == 'EXCLUDED' for item in results)
+
+
+def test_delete_scan_run_removes_run_and_results(db_session):
+    user = signup_user(db_session, 'scan-delete@example.com', 'password123', 'password123')
+    strategy = Strategy(
+        user_id=user.id,
+        name='scan-delete',
+        description='scan-delete',
+        is_active=True,
+        market='KOSPI',
+        min_market_cap=3000000000000,
+        min_trading_value=10000000000,
+        rsi_period=14,
+        rsi_signal_period=9,
+        rsi_min=30,
+        rsi_max=40,
+        bb_period=20,
+        bb_std=2,
+        use_ma5_filter=True,
+        use_ma20_filter=True,
+        foreign_net_buy_days=3,
+        scan_interval_type='eod',
+    )
+    db_session.add(strategy)
+    db_session.commit()
+    db_session.refresh(strategy)
+
+    run = run_scan(db_session, strategy, 'manual')
+    assert db_session.scalar(select(ScanRun).where(ScanRun.id == run.id)) is not None
+    assert db_session.scalars(select(ScanResult).where(ScanResult.scan_run_id == run.id)).all()
+
+    delete_scan_run(db_session, user, run.id)
+
+    assert db_session.scalar(select(ScanRun).where(ScanRun.id == run.id)) is None
+    assert db_session.scalars(select(ScanResult).where(ScanResult.scan_run_id == run.id)).all() == []
