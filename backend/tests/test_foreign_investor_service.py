@@ -3,6 +3,7 @@ from datetime import date
 from app.models.foreign_investor_daily import ForeignInvestorDaily
 from app.providers.base import ForeignInvestorDailyConfirmed
 from app.services.foreign_investor_service import (
+    get_recent_confirmed_foreign_context,
     get_recent_confirmed_foreign_aggregate,
     upsert_foreign_investor_daily_rows,
 )
@@ -80,3 +81,30 @@ def test_recent_confirmed_aggregate_sums_latest_days(db_session):
     assert aggregate == 280
     assert status == 'confirmed'
     assert source == 'confirmed_daily_db'
+
+
+def test_recent_confirmed_context_exposes_coverage_days(db_session):
+    rows = [
+        ForeignInvestorDailyConfirmed(
+            stock_code='005930',
+            trade_date=date(2026, 3, 19),
+            net_buy_value=100,
+            source='kis_investor_daily_confirmed',
+            is_confirmed=True,
+        ),
+        ForeignInvestorDailyConfirmed(
+            stock_code='005930',
+            trade_date=date(2026, 3, 20),
+            net_buy_value=200,
+            source='kis_investor_daily_confirmed',
+            is_confirmed=True,
+        ),
+    ]
+    upsert_foreign_investor_daily_rows(db_session, rows, commit=True)
+
+    context = get_recent_confirmed_foreign_context(db_session, '005930', days=3)
+
+    assert context.status == 'unavailable'
+    assert context.unavailable_reason == 'insufficient_days'
+    assert context.coverage_days == 2
+    assert context.required_days == 3

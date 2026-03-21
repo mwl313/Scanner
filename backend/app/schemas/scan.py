@@ -43,6 +43,9 @@ class ScanResultOut(BaseModel):
     foreign_net_buy_snapshot_value: int | None = None
     foreign_data_status: str | None = None
     foreign_data_source: str | None = None
+    foreign_unavailable_reason: str | None = None
+    foreign_coverage_days: int | None = None
+    foreign_required_days: int | None = None
     trading_value: int
     score: int
     grade: str
@@ -71,6 +74,9 @@ class StockDetailOut(BaseModel):
     foreign_net_buy_snapshot_value: int | None = None
     foreign_data_status: str | None = None
     foreign_data_source: str | None = None
+    foreign_unavailable_reason: str | None = None
+    foreign_coverage_days: int | None = None
+    foreign_required_days: int | None = None
     trading_value: int
     score: int
     grade: str

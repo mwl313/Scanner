@@ -82,7 +82,7 @@ def test_scan_engine_uses_neutral_when_confirmed_foreign_missing(db_session, mon
     monkeypatch.setattr(
         scan_service,
         'get_foreign_investor_context',
-        lambda db, provider, stock_code, days: {
+        lambda db, provider, stock_code, days, **kwargs: {
             'confirmed_aggregate_value': None,
             'snapshot_value': 99999999,
             'status': 'unavailable',
@@ -96,7 +96,10 @@ def test_scan_engine_uses_neutral_when_confirmed_foreign_missing(db_session, mon
 
     assert run.total_scanned > 0
     assert len(results) + run.failed_count == run.total_scanned
-    assert any('외인 확정 데이터 없음(중립 처리)' in (item.matched_reasons_json or []) for item in results)
+    assert any(
+        any('외인 확정 데이터 없음(중립 처리' in reason for reason in (item.matched_reasons_json or []))
+        for item in results
+    )
     assert all(item.foreign_data_status == 'unavailable' for item in results)
 
 
@@ -214,7 +217,7 @@ def test_run_scan_with_pre_screen_filters_universe(db_session, monkeypatch):
     monkeypatch.setattr(
         scan_service,
         'get_foreign_investor_context',
-        lambda db, provider, stock_code, days: {
+        lambda db, provider, stock_code, days, **kwargs: {
             'confirmed_aggregate_value': 1,
             'snapshot_value': 1,
             'status': 'confirmed',
@@ -299,7 +302,7 @@ def test_run_scan_uses_strategy_scan_universe_policy_when_options_missing(db_ses
     monkeypatch.setattr(
         scan_service,
         'get_foreign_investor_context',
-        lambda db, provider, stock_code, days: {
+        lambda db, provider, stock_code, days, **kwargs: {
             'confirmed_aggregate_value': 1,
             'snapshot_value': 1,
             'status': 'confirmed',

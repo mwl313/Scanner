@@ -220,21 +220,20 @@ Pre-screen 동작:
 ### KIS (실데이터)
 - `DATA_PROVIDER=kis`
 - 필수: `KIS_APP_KEY`, `KIS_APP_SECRET`
-- 선택: `KIS_BASE_URL`, `KIS_REQUEST_TIMEOUT_SEC`, `KIS_REQUEST_INTERVAL_MS`, `KIS_UNIVERSE_LIMIT`, `KIS_UNIVERSE_CACHE_HOURS`
+- 선택: `KIS_BASE_URL`, `KIS_REQUEST_TIMEOUT_SEC`, `KIS_REQUEST_INTERVAL_MS`, `KIS_TOKEN_RETRY_COOLDOWN_SEC`, `KIS_UNIVERSE_LIMIT`, `KIS_UNIVERSE_CACHE_HOURS`
 
 `KisMarketDataProvider` 구현 범위:
 - `list_stocks(market)`
 - `get_daily_bars(stock_code, days)`
 - `get_latest_quote(stock_code)`
 - `get_foreign_investor_intraday_snapshot(stock_code)`
-- `get_foreign_investor_daily_confirmed(...)` (provider 호환용; 스코어링 경로는 KRX 확정 데이터 사용)
+- `get_foreign_investor_daily_confirmed(...)` (확정 외인 canonical 소스)
 
 ### 확정 외인 소스 선택
-- `FOREIGN_CONFIRMED_SOURCE=auto|krx|provider` (기본: `auto`)
-- `auto` 동작:
-  - `DATA_PROVIDER=mock` -> mock provider 확정 데이터 사용
-  - `DATA_PROVIDER=kis` -> KRX 확정 데이터 사용
-- KRX 설정: `KRX_BASE_URL`, `KRX_REQUEST_TIMEOUT_SEC`
+- 권장값: `FOREIGN_CONFIRMED_SOURCE=provider` (기본값)
+- 호환 모드: `auto`, `krx` (레거시)
+- 운영 권장: KIS 실데이터에서는 `provider` 경로 사용
+- KRX 설정(`KRX_BASE_URL`, `KRX_REQUEST_TIMEOUT_SEC`)은 레거시/비권장 fallback 용도
 
 ## 외인 데이터 모델 (Option A)
 외국인 데이터는 2개 계층으로 분리합니다.
@@ -243,7 +242,7 @@ Pre-screen 동작:
 - 용도: 화면 정보성 표시(대시보드/종목 상세)
 - 특징: 시점 데이터, 미확정
 
-2. 일별 확정 데이터 (`daily confirmed`, KRX)
+2. 일별 확정 데이터 (`daily confirmed`, KIS provider)
 - 용도: 스캐너 점수/조건 평가의 기준 데이터
 - 저장: `foreign_investor_daily` 테이블 (중복 안전: `stock_code + trade_date` unique)
 
@@ -256,9 +255,13 @@ Pre-screen 동작:
 ### EOD 동기화 플로우
 1. 스케줄러가 EOD 시각에 실행
    - 주말(토/일, `Asia/Seoul` 기준)은 스캔을 건너뜁니다.
-2. KRX 확정 외인 데이터 동기화 (`foreign_investor_daily` upsert)
+2. KIS provider 기반 확정 외인 데이터 동기화 (`foreign_investor_daily` upsert)
 3. 활성 전략 EOD 스캔 실행
 4. 스캔 점수는 DB의 확정 외인 집계를 사용
+
+추가 안정화 포인트:
+- 토큰 실패/레이트리밋 시 짧은 cooldown 적용 (`KIS_TOKEN_RETRY_COOLDOWN_SEC`)
+- 동기화 실패 시 전 종목 즉시 재시도 폭주를 막는 백오프 (`FOREIGN_SYNC_BACKOFF_SECONDS`)
 
 현재 제한:
 - 한국 공휴일 휴장일은 아직 반영하지 않습니다(주말만 skip).
@@ -287,7 +290,7 @@ Pre-screen 동작:
   - 가격/거래대금
   - MA 상태
   - 볼린저 하단 거리
-  - 외인 확정합/장중 스냅샷/상태
+  - 외인 확정합/장중 스냅샷/상태/커버리지
 
 ## 합리적 가정(문서 모호점 처리)
 1. RSI 교차 타이밍: 당일 교차 또는 직전 1봉 교차(현재도 시그널 위)까지 허용.
@@ -295,7 +298,19 @@ Pre-screen 동작:
 3. 볼린저 하단 근접: 하단선과의 거리 3% 이내를 근접으로 정의.
 4. 결과 저장: 필수조건 탈락 종목도 `EXCLUDED`로 저장해 복기 가능하도록 처리.
 5. KIS 유니버스는 전종목 완전탐색보다 안정 실행 가능한 상위 N개 스캔을 우선.
-6. 외인 확정 데이터는 KRX 기준으로 동기화하며, 실패 시 스코어링은 외인 항목을 중립 처리하고 KIS 스냅샷은 정보 표시용으로만 사용.
+6. 외인 확정 데이터는 KIS provider 기준으로 동기화하며, 실패 시 스코어링은 외인 항목을 중립 처리하고 KIS 스냅샷은 정보 표시용으로만 사용.
+
+## 외인 상태 코드 (운영 참고)
+- `foreign_data_status`: `confirmed | unavailable`
+- `foreign_unavailable_reason`:
+  - `token_rate_limited`: 토큰 발급 제한/쿨다운
+  - `api_empty`: provider 응답이 비어 있음
+  - `insufficient_days`: 전략 요구일수 대비 커버리지 부족
+  - `provider_error`: 네트워크/HTTP/API 오류
+  - `parse_none`: 값 파싱 결과 유효한 금액이 없음
+  - `unknown`: 분류되지 않은 예외
+- `foreign_coverage_days`: 실제 확보된 확정 일수
+- `foreign_required_days`: 전략이 요구한 확정 일수
 
 ## 운영 메모 (Mac mini self-hosted)
 - 운영에서는 `APP_ENV=production` + HTTPS 종단(TLS) 구성 필요

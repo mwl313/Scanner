@@ -185,6 +185,7 @@ class KisMarketDataProvider(MarketDataProvider):
         base_url: str,
         timeout_sec: float = 10.0,
         request_interval_ms: int = 80,
+        token_retry_cooldown_sec: int = 65,
         universe_limit: int = 120,
         universe_cache_hours: int = 24,
     ) -> None:
@@ -193,6 +194,7 @@ class KisMarketDataProvider(MarketDataProvider):
         self.base_url = base_url.rstrip('/')
         self.timeout_sec = timeout_sec
         self.request_interval_ms = max(request_interval_ms, 0)
+        self.token_retry_cooldown_sec = max(int(token_retry_cooldown_sec), 1)
         self.universe_limit = universe_limit
         self.universe_cache_hours = max(universe_cache_hours, 1)
 
@@ -200,6 +202,8 @@ class KisMarketDataProvider(MarketDataProvider):
         self._token_lock = threading.Lock()
         self._access_token: str | None = None
         self._access_token_expires_at: datetime | None = None
+        self._token_retry_after: datetime | None = None
+        self._token_retry_reason: str | None = None
 
         self._request_lock = threading.Lock()
         self._last_request_monotonic = 0.0
@@ -237,8 +241,36 @@ class KisMarketDataProvider(MarketDataProvider):
             logger.warning('KIS token expiry parse failed, fallback 23h window: %s', raw)
             return utcnow() + timedelta(hours=23)
 
+    @staticmethod
+    def _looks_like_token_rate_limit(status_code: int, body_text: str) -> bool:
+        if status_code == 429:
+            return True
+        normalized = (body_text or '').lower()
+        return ('egw00133' in normalized) or ('1분당 1회' in body_text) or ('잠시 후 다시' in body_text)
+
+    def _activate_token_retry_cooldown(self, reason: str) -> None:
+        self._token_retry_after = utcnow() + timedelta(seconds=self.token_retry_cooldown_sec)
+        self._token_retry_reason = reason
+
+    def _raise_if_token_retry_in_cooldown(self) -> None:
+        if not self._token_retry_after:
+            return
+        now = utcnow()
+        if now >= self._token_retry_after:
+            self._token_retry_after = None
+            self._token_retry_reason = None
+            return
+        remaining = max(int((self._token_retry_after - now).total_seconds()), 1)
+        raise AppError(
+            code='kis_token_cooldown',
+            message='KIS token request is cooling down after a recent failure',
+            status_code=502,
+            details={'retry_after_seconds': remaining, 'reason': self._token_retry_reason or 'unknown'},
+        )
+
     def _issue_access_token(self) -> str:
         self._ensure_credentials()
+        self._raise_if_token_retry_in_cooldown()
         self._respect_rate_limit()
         try:
             response = self._client.post(
@@ -263,6 +295,14 @@ class KisMarketDataProvider(MarketDataProvider):
             ) from exc
 
         if response.status_code >= 400:
+            if self._looks_like_token_rate_limit(response.status_code, response.text):
+                self._activate_token_retry_cooldown('token_rate_limited')
+                raise AppError(
+                    code='kis_token_rate_limited',
+                    message='KIS token request is rate-limited',
+                    status_code=502,
+                    details={'status_code': response.status_code, 'body': response.text[:400]},
+                )
             raise AppError(
                 code='kis_token_http_error',
                 message='KIS token request failed',
@@ -280,9 +320,18 @@ class KisMarketDataProvider(MarketDataProvider):
             ) from exc
 
         if payload.get('rt_cd') not in (None, '0'):
+            api_message = payload.get('msg1') or 'KIS token API returned an error'
+            if self._looks_like_token_rate_limit(int(payload.get('status_code') or 0), api_message):
+                self._activate_token_retry_cooldown('token_rate_limited')
+                raise AppError(
+                    code='kis_token_rate_limited',
+                    message=api_message,
+                    status_code=502,
+                    details={'msg_cd': payload.get('msg_cd'), 'rt_cd': payload.get('rt_cd')},
+                )
             raise AppError(
                 code='kis_token_api_error',
-                message=payload.get('msg1') or 'KIS token API returned an error',
+                message=api_message,
                 status_code=502,
                 details={'msg_cd': payload.get('msg_cd'), 'rt_cd': payload.get('rt_cd')},
             )
@@ -297,6 +346,8 @@ class KisMarketDataProvider(MarketDataProvider):
 
         self._access_token = token
         self._access_token_expires_at = self._parse_token_expiry(payload.get('access_token_token_expired'))
+        self._token_retry_after = None
+        self._token_retry_reason = None
         return token
 
     def _get_access_token(self, force_refresh: bool = False) -> str:
@@ -714,7 +765,7 @@ class KisMarketDataProvider(MarketDataProvider):
             )
         except AppError as exc:
             logger.warning('KIS daily confirmed investor fetch failed for %s: %s', stock_code, exc.message)
-            return []
+            raise
 
         rows = payload.get('output2') or []
         if not isinstance(rows, list) or not rows:

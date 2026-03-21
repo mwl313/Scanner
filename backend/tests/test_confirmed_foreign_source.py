@@ -93,11 +93,22 @@ def test_resolve_source_auto_mock_uses_provider(monkeypatch):
     assert isinstance(source, ProviderConfirmedForeignInvestorSource)
 
 
-def test_resolve_source_auto_kis_uses_krx(monkeypatch):
+def test_resolve_source_auto_kis_uses_provider(monkeypatch):
     from app.core.config import get_settings
 
     monkeypatch.setenv('DATA_PROVIDER', 'kis')
     monkeypatch.setenv('FOREIGN_CONFIRMED_SOURCE', 'auto')
+    get_settings.cache_clear()
+
+    source = resolve_confirmed_foreign_source(MockMarketDataProvider())
+    assert isinstance(source, ProviderConfirmedForeignInvestorSource)
+
+
+def test_resolve_source_explicit_krx_uses_krx(monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv('DATA_PROVIDER', 'kis')
+    monkeypatch.setenv('FOREIGN_CONFIRMED_SOURCE', 'krx')
     get_settings.cache_clear()
 
     source = resolve_confirmed_foreign_source(MockMarketDataProvider())

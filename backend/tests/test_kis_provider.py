@@ -1,6 +1,7 @@
-from datetime import date
+from datetime import date, timedelta
 
 import app.providers.kis_provider as kis_provider_module
+from app.core.exceptions import AppError
 from app.providers.base import DailyBar, ForeignInvestorDailyConfirmed, StockMeta
 from app.providers.kis_provider import KisMarketDataProvider
 
@@ -249,4 +250,61 @@ def test_daily_confirmed_does_not_substitute_quantity(monkeypatch):
     assert rows[0].net_buy_value is None
     assert rows[0].is_confirmed is True
 
+    provider._client.close()
+
+
+def test_get_access_token_reuses_cached_token(monkeypatch):
+    provider = make_provider()
+    calls = {'count': 0}
+
+    def fake_issue():
+        calls['count'] += 1
+        provider._access_token = 'cached-token'
+        provider._access_token_expires_at = kis_provider_module.utcnow() + timedelta(hours=1)
+        return 'cached-token'
+
+    monkeypatch.setattr(provider, '_issue_access_token', fake_issue)
+
+    first = provider._get_access_token()
+    second = provider._get_access_token()
+
+    assert first == 'cached-token'
+    assert second == 'cached-token'
+    assert calls['count'] == 1
+
+    provider._client.close()
+
+
+def test_token_rate_limit_uses_cooldown(monkeypatch):
+    provider = make_provider()
+    calls = {'count': 0}
+
+    class FakeResponse:
+        status_code = 403
+        text = '{"error_description":"접근토큰 발급 잠시 후 다시 시도하세요(1분당 1회)","error_code":"EGW00133"}'
+
+        @staticmethod
+        def json():
+            return {'error_description': '접근토큰 발급 잠시 후 다시 시도하세요(1분당 1회)', 'error_code': 'EGW00133'}
+
+    def fake_post(*args, **kwargs):
+        _ = args, kwargs
+        calls['count'] += 1
+        return FakeResponse()
+
+    monkeypatch.setattr(provider._client, 'post', fake_post)
+
+    try:
+        provider._issue_access_token()
+        raise AssertionError('expected token rate-limited error')
+    except AppError as exc:
+        assert exc.code == 'kis_token_rate_limited'
+
+    try:
+        provider._issue_access_token()
+        raise AssertionError('expected token cooldown error')
+    except AppError as exc:
+        assert exc.code == 'kis_token_cooldown'
+
+    assert calls['count'] == 1
     provider._client.close()

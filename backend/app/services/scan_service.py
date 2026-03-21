@@ -17,6 +17,7 @@ from app.models.watchlist_item import WatchlistItem
 from app.providers import DailyBar, StockMeta, get_market_data_provider
 from app.services.foreign_investor_service import (
     get_foreign_investor_context,
+    sync_confirmed_foreign_for_codes,
     sync_confirmed_foreign_for_market,
 )
 from app.services.strategy_schema_service import normalize_strategy_config
@@ -249,6 +250,10 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
     foreign_source = str(foreign_data.get('source') or 'unknown')
     foreign_confirmed_row_source = foreign_data.get('confirmed_row_source')
     foreign_snapshot_source = str(foreign_data.get('snapshot_source') or 'unknown')
+    foreign_unavailable_reason = str(foreign_data.get('unavailable_reason') or '')
+    foreign_coverage_days = int(foreign_data.get('coverage_days') or 0)
+    foreign_required_days = int(foreign_data.get('required_days') or max(int(foreign_cfg['days']), 1))
+    foreign_coverage_label = f'{foreign_coverage_days}/{foreign_required_days}'
     confirmed_source_label = str(foreign_confirmed_row_source or foreign_source)
     foreign_net_buy_positive = (foreign_confirmed_value is not None) and (foreign_confirmed_value > 0)
 
@@ -355,7 +360,10 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
                     weight=foreign_weight,
                     passed=False,
                     neutral=True,
-                    success_reason='외인 확정 데이터 없음(중립 처리)',
+                    success_reason=(
+                        f'외인 확정 데이터 없음(중립 처리, 커버리지 {foreign_coverage_label}, '
+                        f'사유: {foreign_unavailable_reason or "unknown"})'
+                    ),
                     fail_reason='',
                 )
             elif foreign_policy == 'pass':
@@ -430,6 +438,9 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
         'foreign_net_buy_snapshot_value': (int(foreign_snapshot_value) if foreign_snapshot_value is not None else None),
         'foreign_data_status': foreign_status,
         'foreign_data_source': f'confirmed:{confirmed_source_label}|snapshot:{foreign_snapshot_source}',
+        'foreign_unavailable_reason': (foreign_unavailable_reason or None),
+        'foreign_coverage_days': foreign_coverage_days,
+        'foreign_required_days': foreign_required_days,
         'trading_value': latest_trading_value,
         'score': score,
         'grade': grade,
@@ -508,6 +519,32 @@ def run_scan_with_metrics(
                 metrics.pre_screen_min_market_cap,
             )
 
+        per_stock_sync_if_missing = False
+        try:
+            sync_scanned, sync_saved, sync_skipped = sync_confirmed_foreign_for_codes(
+                db,
+                provider,
+                [stock.code for stock in targets],
+                lookback_days=max(foreign_days * 4, 14),
+                required_days=foreign_days,
+                commit=False,
+            )
+            logger.info(
+                'Confirmed foreign pre-sync finished before scan loop (strategy=%s, targets=%s, scanned=%s, saved=%s, skipped=%s)',
+                strategy.id,
+                len(targets),
+                sync_scanned,
+                sync_saved,
+                sync_skipped,
+            )
+        except Exception as exc:
+            per_stock_sync_if_missing = True
+            logger.warning(
+                'Confirmed foreign pre-sync failed; falling back to on-demand sync (strategy=%s): %s',
+                strategy.id,
+                exc,
+            )
+
         scan_loop_started = time.perf_counter()
         for stock in targets:
             run.total_scanned += 1
@@ -518,6 +555,7 @@ def run_scan_with_metrics(
                     provider,
                     stock.code,
                     foreign_days,
+                    sync_if_missing=per_stock_sync_if_missing,
                 )
                 evaluated = _evaluate_stock(strategy, strategy_config, stock, bars, foreign_data)
 

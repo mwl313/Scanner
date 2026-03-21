@@ -57,15 +57,12 @@ def _get_krx_connector() -> KrxConfirmedForeignInvestorConnector:
 
 def resolve_confirmed_foreign_source(provider: MarketDataProvider) -> ConfirmedForeignInvestorSource:
     settings = get_settings()
-    mode = (settings.foreign_confirmed_source or 'auto').lower()
+    mode = (settings.foreign_confirmed_source or 'provider').lower()
 
-    if mode == 'provider':
+    if mode in {'provider', 'auto'}:
         return ProviderConfirmedForeignInvestorSource(provider)
     if mode == 'krx':
         return KrxConfirmedForeignInvestorSource(_get_krx_connector())
 
-    # auto mode: mock 개발환경은 provider 데이터 유지, kis 실데이터는 KRX 확정 데이터 사용.
-    if settings.data_provider.lower() == 'mock':
-        return ProviderConfirmedForeignInvestorSource(provider)
-    return KrxConfirmedForeignInvestorSource(_get_krx_connector())
-
+    # Unknown mode fallback: provider 기반 경로를 우선 사용한다.
+    return ProviderConfirmedForeignInvestorSource(provider)

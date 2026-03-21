@@ -54,6 +54,9 @@ def stock_detail(
         foreign_net_buy_snapshot_value=(int(snapshot_value) if snapshot_value is not None else None),
         foreign_data_status=result.foreign_data_status or 'unavailable',
         foreign_data_source=snapshot_source,
+        foreign_unavailable_reason=result.foreign_unavailable_reason,
+        foreign_coverage_days=int(result.foreign_coverage_days),
+        foreign_required_days=int(result.foreign_required_days),
         trading_value=int(result.trading_value),
         score=result.score,
         grade=result.grade,
@@ -94,6 +97,9 @@ def stock_indicators(
         ),
         'foreign_data_status': result.foreign_data_status or 'unavailable',
         'foreign_data_source': result.foreign_data_source,
+        'foreign_unavailable_reason': result.foreign_unavailable_reason,
+        'foreign_coverage_days': int(result.foreign_coverage_days),
+        'foreign_required_days': int(result.foreign_required_days),
     }
 
 

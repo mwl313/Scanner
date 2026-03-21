@@ -33,9 +33,11 @@ class Settings(BaseSettings):
     kis_account_no: str | None = None
     kis_request_timeout_sec: float = 10.0
     kis_request_interval_ms: int = 80
+    kis_token_retry_cooldown_sec: int = 65
     kis_universe_limit: int = 120
     kis_universe_cache_hours: int = 24
-    foreign_confirmed_source: str = 'auto'  # auto | krx | provider
+    foreign_confirmed_source: str = 'provider'  # provider | auto | krx
+    foreign_sync_backoff_seconds: int = 65
     krx_base_url: str = 'http://data.krx.co.kr'
     krx_request_timeout_sec: float = 10.0
 

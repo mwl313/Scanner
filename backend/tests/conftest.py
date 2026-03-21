@@ -1,9 +1,26 @@
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-import pytest
 
 from app.db.base_class import Base
+
+
+@pytest.fixture(autouse=True)
+def isolate_test_settings(monkeypatch):
+    from app.core.config import get_settings
+    from app.providers.factory import get_market_data_provider
+
+    monkeypatch.setenv('DATA_PROVIDER', 'mock')
+    monkeypatch.setenv('FOREIGN_CONFIRMED_SOURCE', 'provider')
+    monkeypatch.setenv('KIS_TOKEN_RETRY_COOLDOWN_SEC', '1')
+    monkeypatch.setenv('FOREIGN_SYNC_BACKOFF_SECONDS', '1')
+
+    get_settings.cache_clear()
+    get_market_data_provider.cache_clear()
+    yield
+    get_settings.cache_clear()
+    get_market_data_provider.cache_clear()
 
 
 @pytest.fixture()

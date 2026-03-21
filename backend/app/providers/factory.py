@@ -16,6 +16,7 @@ def create_market_data_provider(provider_name: str | None = None) -> MarketDataP
             base_url=settings.kis_base_url,
             timeout_sec=settings.kis_request_timeout_sec,
             request_interval_ms=settings.kis_request_interval_ms,
+            token_retry_cooldown_sec=settings.kis_token_retry_cooldown_sec,
             universe_limit=settings.kis_universe_limit,
             universe_cache_hours=settings.kis_universe_cache_hours,
         )
