@@ -25,3 +25,12 @@ Thumbs.db
 
 # Local ops artifacts
 backups/
+.tmp_kis_ref/
+stitch/
+import_strategies_*.sql
+strategies_*.csv
+scan-benchmark-*.md
+scan-benchmark-*.csv
+benchmark-test-results-*.md
+backend/reports/*.md
+backend/reports/*.csv

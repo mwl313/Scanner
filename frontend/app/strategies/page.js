@@ -17,9 +17,11 @@ function buildStrategySummary(item) {
   const rsiRange = cfg?.rsi ? `${cfg.rsi.min} ~ ${cfg.rsi.max}` : `${item.rsi_min} ~ ${item.rsi_max}`;
   const foreignDays = cfg?.foreign?.days || item.foreign_net_buy_days || '-';
   const tradingValue = cfg?.trading_value?.min_trading_value || item.min_trading_value;
+  const universeLimitLabel = Number(item.scan_universe_limit) === 0 ? '전체' : String(item.scan_universe_limit || 300);
 
   return [
     `시장 ${market}`,
+    `범위 ${universeLimitLabel}`,
     `RSI ${rsiRange}`,
     `외인 ${foreignDays}일`,
     `거래대금 ${Number(tradingValue || 0).toLocaleString('ko-KR')}`,

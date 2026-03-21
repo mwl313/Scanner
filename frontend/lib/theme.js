@@ -1,5 +1,5 @@
 export const NAV_LINKS = [
-  { href: '/dashboard', label: '대시보드' },
+  { href: '/dashboard', label: '프로필' },
   { href: '/strategies', label: '전략' },
   { href: '/scans', label: '스캔 콘솔' },
 ];

@@ -4,6 +4,16 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.scan_policy import ALLOWED_SCAN_UNIVERSE_LIMITS, DEFAULT_SCAN_UNIVERSE_LIMIT
+
+
+def _validate_scan_universe_limit(value: int) -> int:
+    normalized = int(value)
+    if normalized not in ALLOWED_SCAN_UNIVERSE_LIMITS:
+        allowed = ', '.join(str(item) for item in ALLOWED_SCAN_UNIVERSE_LIMITS)
+        raise ValueError(f'scan_universe_limit must be one of: {allowed}')
+    return normalized
+
 
 class ScoringConfig(BaseModel):
     normalize_to_percent: bool = True
@@ -123,7 +133,13 @@ class StrategyBase(BaseModel):
     use_ma20_filter: bool = True
     foreign_net_buy_days: int = 3
     scan_interval_type: str = 'eod'
+    scan_universe_limit: int = DEFAULT_SCAN_UNIVERSE_LIMIT
     strategy_config: StrategyConfig | None = None
+
+    @field_validator('scan_universe_limit')
+    @classmethod
+    def validate_scan_universe_limit(cls, value: int) -> int:
+        return _validate_scan_universe_limit(value)
 
 
 class StrategyCreate(StrategyBase):
@@ -151,7 +167,15 @@ class StrategyUpdate(BaseModel):
     use_ma20_filter: bool | None = None
     foreign_net_buy_days: int | None = None
     scan_interval_type: str | None = None
+    scan_universe_limit: int | None = None
     strategy_config: StrategyConfig | None = None
+
+    @field_validator('scan_universe_limit')
+    @classmethod
+    def validate_scan_universe_limit(cls, value: int | None) -> int | None:
+        if value is None:
+            return value
+        return _validate_scan_universe_limit(value)
 
 
 class StrategyOut(StrategyBase):

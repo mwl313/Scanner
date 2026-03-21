@@ -13,7 +13,7 @@ import SurfaceCard from '../../components/ui/SurfaceCard';
 import { useRequireAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/api';
 import { buildCsvFilename, convertScanResultsToCsv, downloadCsv } from '../../lib/csv';
-import { buildPositivePoints } from '../../lib/formatters';
+import { buildPositivePoints, formatScanRunLabel } from '../../lib/formatters';
 
 const GRADE_OPTIONS = ['A', 'B', 'C', 'EXCLUDED'];
 
@@ -31,6 +31,7 @@ export default function ScansPage() {
   const [detailError, setDetailError] = useState('');
   const [detail, setDetail] = useState(null);
   const [selectedStockCode, setSelectedStockCode] = useState('');
+  const [isRunningScan, setIsRunningScan] = useState(false);
 
   const loadBase = async () => {
     const [strategyItems, runItems] = await Promise.all([apiRequest('/api/strategies'), apiRequest('/api/scans')]);
@@ -48,7 +49,14 @@ export default function ScansPage() {
     }
 
     if (runItems?.length > 0) {
-      if (!selectedRunId || !runIds.has(String(selectedRunId))) {
+      const deepLinkRunId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('runId')
+        : null;
+      const normalizedDeepLinkRunId = deepLinkRunId && /^\d+$/.test(deepLinkRunId) ? deepLinkRunId : '';
+
+      if (normalizedDeepLinkRunId && runIds.has(normalizedDeepLinkRunId)) {
+        setSelectedRunId(normalizedDeepLinkRunId);
+      } else if (!selectedRunId || !runIds.has(String(selectedRunId))) {
         setSelectedRunId(String(runItems[0].id));
       }
     } else if (selectedRunId) {
@@ -79,12 +87,20 @@ export default function ScansPage() {
   }, [selectedRunId]);
 
   const runScanNow = async () => {
+    if (!selectedStrategyId || isRunningScan) return;
     setError('');
-    await apiRequest('/api/scans/run', {
-      method: 'POST',
-      body: JSON.stringify({ strategy_id: Number(selectedStrategyId), run_type: 'manual' }),
-    });
-    await loadBase();
+    setIsRunningScan(true);
+    try {
+      await apiRequest('/api/scans/run', {
+        method: 'POST',
+        body: JSON.stringify({ strategy_id: Number(selectedStrategyId), run_type: 'manual' }),
+      });
+      await loadBase();
+    } catch (err) {
+      setError(err.message || '수동 스캔 실행에 실패했습니다.');
+    } finally {
+      setIsRunningScan(false);
+    }
   };
 
   const deleteSelectedRun = async () => {
@@ -187,6 +203,9 @@ export default function ScansPage() {
         canDownload={filteredResults.length > 0}
         canDeleteRun={Boolean(selectedRunId)}
         gradeOptions={GRADE_OPTIONS}
+        formatRunLabel={formatScanRunLabel}
+        isRunningScan={isRunningScan}
+        canRunNow={Boolean(selectedStrategyId)}
       />
 
       {error && <SurfaceCard className="error-block"><p className="error">{error}</p></SurfaceCard>}
