@@ -1,10 +1,13 @@
 from collections.abc import Iterable
+from dataclasses import dataclass
 import logging
 import math
+import time
 
 from sqlalchemy import Select, and_, desc, select
 from sqlalchemy.orm import Session
 
+from app.core.scan_policy import resolve_strategy_scan_policy
 from app.core.scoring import GRADE_THRESHOLDS
 from app.models.scan_result import ScanResult
 from app.models.scan_run import ScanRun
@@ -21,6 +24,102 @@ from app.utils.datetime_utils import utcnow
 from app.utils.indicators import bollinger, is_nan, rsi, sma
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ScanExecutionOptions:
+    universe_limit: int | None = None
+    pre_screen_enabled: bool = False
+    pre_screen_min_market_cap: int | None = None
+
+
+@dataclass
+class ScanExecutionMetrics:
+    provider_name: str
+    original_universe_count: int = 0
+    limited_universe_count: int = 0
+    pre_screen_universe_count: int = 0
+    target_universe_count: int = 0
+    total_scanned: int = 0
+    total_matched: int = 0
+    failed_count: int = 0
+    universe_limit: int | None = None
+    pre_screen_enabled: bool = False
+    pre_screen_min_market_cap: int | None = None
+    provider_fetch_elapsed_seconds: float = 0.0
+    universe_build_elapsed_seconds: float = 0.0
+    scan_loop_elapsed_seconds: float = 0.0
+    persistence_elapsed_seconds: float = 0.0
+    total_elapsed_seconds: float = 0.0
+
+
+@dataclass
+class ScanExecutionOutcome:
+    run: ScanRun
+    metrics: ScanExecutionMetrics
+
+
+def _normalize_scan_options(execution_options: ScanExecutionOptions | None) -> ScanExecutionOptions:
+    return execution_options or ScanExecutionOptions()
+
+
+def resolve_strategy_scan_execution_options(strategy: Strategy) -> ScanExecutionOptions:
+    policy = resolve_strategy_scan_policy(getattr(strategy, 'scan_universe_limit', None))
+    return ScanExecutionOptions(
+        universe_limit=policy.universe_limit,
+        pre_screen_enabled=policy.pre_screen_enabled,
+    )
+
+
+def _resolve_pre_screen_min_market_cap(
+    strategy: Strategy,
+    strategy_config: dict,
+    options: ScanExecutionOptions,
+) -> int | None:
+    if not options.pre_screen_enabled:
+        return None
+    if options.pre_screen_min_market_cap is not None:
+        return max(int(options.pre_screen_min_market_cap), 0)
+
+    market_cap_cfg = (strategy_config.get('categories') or {}).get('market_cap') or {}
+    if bool(market_cap_cfg.get('enabled', False)):
+        return max(int(market_cap_cfg.get('min_market_cap', 0)), 0)
+    return max(int(getattr(strategy, 'min_market_cap', 0) or 0), 0) or None
+
+
+def _prepare_scan_universe(
+    stocks: list[StockMeta],
+    strategy: Strategy,
+    strategy_config: dict,
+    options: ScanExecutionOptions,
+    provider_name: str,
+) -> tuple[list[StockMeta], ScanExecutionMetrics]:
+    normalized_limit: int | None = None
+    limited_stocks = list(stocks)
+    if options.universe_limit is not None:
+        limit = int(options.universe_limit)
+        if limit > 0:
+            normalized_limit = limit
+            limited_stocks = limited_stocks[:limit]
+        elif limit <= 0:
+            normalized_limit = 0
+
+    pre_screen_min_market_cap = _resolve_pre_screen_min_market_cap(strategy, strategy_config, options)
+    filtered_stocks = limited_stocks
+    if options.pre_screen_enabled and pre_screen_min_market_cap:
+        filtered_stocks = [item for item in limited_stocks if int(item.market_cap) >= int(pre_screen_min_market_cap)]
+
+    metrics = ScanExecutionMetrics(
+        provider_name=provider_name,
+        original_universe_count=len(stocks),
+        limited_universe_count=len(limited_stocks),
+        pre_screen_universe_count=len(filtered_stocks),
+        target_universe_count=len(filtered_stocks),
+        universe_limit=normalized_limit,
+        pre_screen_enabled=bool(options.pre_screen_enabled),
+        pre_screen_min_market_cap=pre_screen_min_market_cap,
+    )
+    return filtered_stocks, metrics
 
 
 
@@ -338,8 +437,19 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
 
 
 
-def run_scan(db: Session, strategy: Strategy, run_type: str = 'manual') -> ScanRun:
-    provider = get_market_data_provider()
+def run_scan_with_metrics(
+    db: Session,
+    strategy: Strategy,
+    run_type: str = 'manual',
+    *,
+    execution_options: ScanExecutionOptions | None = None,
+    provider=None,
+) -> ScanExecutionOutcome:
+    if execution_options is None:
+        execution_options = resolve_strategy_scan_execution_options(strategy)
+    resolved_options = _normalize_scan_options(execution_options)
+    provider = provider or get_market_data_provider()
+    provider_name = provider.__class__.__name__
     strategy_config = normalize_strategy_config(strategy.strategy_config, legacy_source=strategy)
     target_market = str(strategy_config.get('market') or strategy.market or 'KOSPI').upper()
     categories = strategy_config['categories']
@@ -367,9 +477,37 @@ def run_scan(db: Session, strategy: Strategy, run_type: str = 'manual') -> ScanR
     db.commit()
     db.refresh(run)
 
+    metrics = ScanExecutionMetrics(provider_name=provider_name)
     try:
+        total_started = time.perf_counter()
+
+        fetch_started = time.perf_counter()
         stocks = provider.list_stocks(target_market)
-        for stock in stocks:
+        provider_fetch_elapsed = time.perf_counter() - fetch_started
+
+        universe_started = time.perf_counter()
+        targets, metrics = _prepare_scan_universe(
+            stocks,
+            strategy,
+            strategy_config,
+            resolved_options,
+            provider_name=provider_name,
+        )
+        metrics.provider_fetch_elapsed_seconds = provider_fetch_elapsed
+        metrics.universe_build_elapsed_seconds = time.perf_counter() - universe_started
+        if metrics.pre_screen_enabled:
+            logger.info(
+                'Scan pre-screen applied (provider=%s, strategy=%s, original=%s, limited=%s, pre_screen=%s, min_market_cap=%s)',
+                metrics.provider_name,
+                strategy.id,
+                metrics.original_universe_count,
+                metrics.limited_universe_count,
+                metrics.pre_screen_universe_count,
+                metrics.pre_screen_min_market_cap,
+            )
+
+        scan_loop_started = time.perf_counter()
+        for stock in targets:
             run.total_scanned += 1
             try:
                 bars = provider.get_daily_bars(stock.code, required_days)
@@ -389,19 +527,46 @@ def run_scan(db: Session, strategy: Strategy, run_type: str = 'manual') -> ScanR
             except Exception as exc:
                 run.failed_count += 1
                 logger.exception('Failed to scan %s (%s): %s', stock.code, stock.name, exc)
+        metrics.scan_loop_elapsed_seconds = time.perf_counter() - scan_loop_started
 
         run.status = 'partial_failed' if run.failed_count > 0 else 'completed'
         run.finished_at = utcnow()
         db.add(run)
+        persistence_started = time.perf_counter()
         db.commit()
         db.refresh(run)
-        return run
+        metrics.persistence_elapsed_seconds = time.perf_counter() - persistence_started
+        metrics.total_elapsed_seconds = time.perf_counter() - total_started
+        metrics.total_scanned = int(run.total_scanned)
+        metrics.total_matched = int(run.total_matched)
+        metrics.failed_count = int(run.failed_count)
+        return ScanExecutionOutcome(run=run, metrics=metrics)
     except Exception:
         run.status = 'failed'
         run.finished_at = utcnow()
         db.add(run)
         db.commit()
         raise
+
+
+def run_scan(
+    db: Session,
+    strategy: Strategy,
+    run_type: str = 'manual',
+    *,
+    execution_options: ScanExecutionOptions | None = None,
+    provider=None,
+) -> ScanRun:
+    if execution_options is None:
+        execution_options = resolve_strategy_scan_execution_options(strategy)
+    outcome = run_scan_with_metrics(
+        db,
+        strategy,
+        run_type=run_type,
+        execution_options=execution_options,
+        provider=provider,
+    )
+    return outcome.run
 
 
 
@@ -505,6 +670,11 @@ def run_scheduled_scans(db: Session) -> None:
     ).all()
     for strategy in strategies:
         try:
-            run_scan(db, strategy, run_type='scheduled')
+            run_scan(
+                db,
+                strategy,
+                run_type='scheduled',
+                execution_options=resolve_strategy_scan_execution_options(strategy),
+            )
         except Exception as exc:
             logger.exception('Scheduled scan failed for strategy=%s: %s', strategy.id, exc)

@@ -18,6 +18,9 @@ export default function ScanToolbar({
   canDownload,
   canDeleteRun,
   gradeOptions,
+  formatRunLabel,
+  isRunningScan,
+  canRunNow,
 }) {
   const allSelected = selectedGrades.length === gradeOptions.length;
   const gradeLabel = allSelected ? '전체 등급' : selectedGrades.length === 0 ? '등급 없음' : selectedGrades.join(', ');
@@ -27,7 +30,7 @@ export default function ScanToolbar({
       <div className="scan-toolbar-grid">
         <div>
           <label>전략</label>
-          <select value={selectedStrategyId} onChange={(e) => onChangeStrategy(e.target.value)}>
+          <select value={selectedStrategyId} onChange={(e) => onChangeStrategy(e.target.value)} disabled={isRunningScan}>
             {strategies.map((strategy) => (
               <option key={strategy.id} value={strategy.id}>
                 {strategy.name}
@@ -39,15 +42,15 @@ export default function ScanToolbar({
         <div>
           <label>스캔 Run</label>
           <div className="scan-run-control">
-            <select value={selectedRunId} onChange={(e) => onChangeRun(e.target.value)}>
+            <select value={selectedRunId} onChange={(e) => onChangeRun(e.target.value)} disabled={isRunningScan}>
               {runs.length === 0 && <option value="">Run 없음</option>}
               {runs.map((run) => (
                 <option key={run.id} value={run.id}>
-                  #{run.id} · {run.status} · matched {run.total_matched}
+                  {formatRunLabel ? formatRunLabel(run) : `#${run.id}`}
                 </option>
               ))}
             </select>
-            <button type="button" className="btn btn-danger scan-run-delete-btn" onClick={onDeleteRun} disabled={!canDeleteRun}>
+            <button type="button" className="btn btn-danger scan-run-delete-btn" onClick={onDeleteRun} disabled={!canDeleteRun || isRunningScan}>
               삭제
             </button>
           </div>
@@ -71,10 +74,18 @@ export default function ScanToolbar({
       </div>
 
       <div className="scan-toolbar-actions">
+        {isRunningScan && (
+          <span className="scan-running-pill" role="status" aria-live="polite">
+            <span className="scan-running-dot" aria-hidden="true" />
+            스캔 실행 중...
+          </span>
+        )}
         <GhostButton onClick={onDownloadCsv} disabled={!canDownload}>
           결과 CSV 다운로드
         </GhostButton>
-        <PillButton onClick={onRunNow}>수동 스캔 실행</PillButton>
+        <PillButton onClick={onRunNow} disabled={!canRunNow || isRunningScan}>
+          {isRunningScan ? '스캔 중...' : '수동 스캔 실행'}
+        </PillButton>
       </div>
     </section>
   );

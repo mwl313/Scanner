@@ -559,6 +559,190 @@ label {
   gap: 12px;
 }
 
+.profile-layout {
+  --profile-panel-height: min(72vh, 700px);
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.profile-panel {
+  height: var(--profile-panel-height);
+  min-height: 520px;
+}
+
+.profile-scans-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-scans-table-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.profile-scans-head {
+  display: grid;
+  grid-template-columns: 0.95fr 1.55fr 1.2fr;
+  gap: 10px;
+  padding: 0 10px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-scans-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.profile-scan-row {
+  width: 100%;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid rgba(113, 124, 130, 0.14);
+  padding: 11px 10px;
+  display: grid;
+  grid-template-columns: 0.95fr 1.55fr 1.2fr;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  box-shadow: none;
+}
+
+.profile-scan-row:hover {
+  background: #edf3f8;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+}
+
+.profile-scan-cell {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-scan-id {
+  font-family: "Manrope", sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.profile-scan-strategy,
+.profile-scan-date {
+  font-size: 13px;
+  color: #3e4b52;
+}
+
+.profile-summary-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.profile-mini-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  border: 1px solid rgba(113, 124, 130, 0.15);
+}
+
+.profile-mini-card h4 {
+  font-size: 18px;
+}
+
+.profile-identity-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.profile-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Manrope", sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #1f3d5b;
+  background: linear-gradient(145deg, #dce7f2, #e8eef6);
+  border: 1px solid rgba(84, 96, 103, 0.18);
+}
+
+.profile-email-label {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-email {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profile-strategy-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.profile-strategy-name {
+  margin: 2px 0 0;
+  font-family: "Manrope", sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.profile-strategy-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.profile-strategy-meta span {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-low);
+  border-radius: var(--radius-pill);
+  padding: 5px 10px;
+}
+
+.profile-mini-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .strategy-list,
 .journal-list {
   display: flex;
@@ -641,6 +825,29 @@ label {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.scan-running-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border-radius: var(--radius-pill);
+  background: rgba(37, 99, 235, 0.12);
+  color: #184c97;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.scan-running-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #2563eb;
+  box-shadow: 0 0 0 rgba(37, 99, 235, 0.2);
+  animation: scan-pulse 1.2s var(--ease-smooth-in-out) infinite;
 }
 
 .scan-grade-trigger {
@@ -1769,6 +1976,21 @@ td {
   }
 }
 
+@keyframes scan-pulse {
+  0% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.3);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+  }
+  100% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
 @media (max-width: 980px) {
   .top-nav-links,
   .live-chip {
@@ -1789,6 +2011,8 @@ td {
   }
 
   .dashboard-panels,
+  .profile-layout,
+  .profile-summary-grid,
   .stock-detail-grid,
   .stock-insight-grid,
   .strategy-list-grid,
@@ -1806,6 +2030,19 @@ td {
   .scan-toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .profile-panel {
+    height: auto;
+    min-height: 0;
+  }
+
+  .profile-scans-panel {
+    min-height: 360px;
+  }
+
+  .profile-scans-body {
+    max-height: 420px;
   }
 
   .scan-toolbar-actions {
@@ -1871,5 +2108,9 @@ td {
     animation: none !important;
     transition-duration: 0ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .scan-running-dot {
+    animation: none !important;
   }
 }

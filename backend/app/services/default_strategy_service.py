@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.scan_policy import DEFAULT_SCAN_UNIVERSE_LIMIT
 from app.models.strategy import Strategy
 from app.models.user import User
 from app.schemas.strategy import StrategyConfig
@@ -12,6 +13,7 @@ DEFAULT_STRATEGY_CORE_FIELDS: dict = {
     'description': '눌림 후 반등 후보 자동 탐색',
     'is_active': True,
     'scan_interval_type': 'eod',
+    'scan_universe_limit': DEFAULT_SCAN_UNIVERSE_LIMIT,
 }
 DEFAULT_STRATEGY_CONFIG = StrategyConfig().model_dump()
 DEFAULT_STRATEGY_LEGACY_FIELDS = strategy_config_to_legacy_fields(DEFAULT_STRATEGY_CONFIG)

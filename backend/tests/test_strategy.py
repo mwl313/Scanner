@@ -1,4 +1,8 @@
+import pytest
+
+from app.core.scan_policy import DEFAULT_SCAN_UNIVERSE_LIMIT
 from app.schemas.strategy import StrategyCreate, StrategyUpdate
+from app.services.auth_service import signup_user
 from app.services.strategy_service import (
     create_strategy,
     delete_strategy,
@@ -7,8 +11,14 @@ from app.services.strategy_service import (
     list_strategies,
     update_strategy,
 )
-from app.services.auth_service import signup_user
 
+
+def test_strategy_schema_scan_universe_limit_default_and_validation():
+    payload = StrategyCreate(name='기본값 확인')
+    assert payload.scan_universe_limit == DEFAULT_SCAN_UNIVERSE_LIMIT
+
+    with pytest.raises(ValueError):
+        StrategyCreate(name='잘못된 범위', scan_universe_limit=150)
 
 
 def test_strategy_crud_cycle(db_session):
@@ -36,18 +46,22 @@ def test_strategy_crud_cycle(db_session):
             use_ma20_filter=True,
             foreign_net_buy_days=3,
             scan_interval_type='eod',
+            scan_universe_limit=500,
         ),
     )
 
     fetched = get_strategy_or_404(db_session, user, created.id)
     assert fetched.name == '기본 전략'
+    assert fetched.scan_universe_limit == 500
 
-    updated = update_strategy(db_session, fetched, StrategyUpdate(name='수정 전략', rsi_max=45))
+    updated = update_strategy(db_session, fetched, StrategyUpdate(name='수정 전략', rsi_max=45, scan_universe_limit=0))
     assert updated.name == '수정 전략'
     assert updated.rsi_max == 45
+    assert updated.scan_universe_limit == 0
 
     copied = duplicate_strategy(db_session, user, updated)
     assert '(복제)' in copied.name
+    assert copied.scan_universe_limit == 0
 
     all_items = list_strategies(db_session, user)
     assert len(all_items) == initial_count + 2

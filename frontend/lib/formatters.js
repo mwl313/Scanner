@@ -8,6 +8,23 @@ export function formatDateTime(value) {
   return new Date(value).toLocaleString('ko-KR');
 }
 
+export function formatDateTimeCompact(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+}
+
+export function formatScanRunLabel(run) {
+  if (!run) return '#-';
+  return `#${run.id} · ${formatDateTimeCompact(run.started_at)}`;
+}
+
 export function formatPercent(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
   return `${Number(value).toFixed(digits)}%`;

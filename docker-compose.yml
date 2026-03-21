@@ -18,6 +18,8 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
+    volumes:
+      - ./backend/reports:/app/reports
     environment:
       APP_NAME: KOSPI Swing Scanner
       APP_ENV: ${APP_ENV:-development}

@@ -76,8 +76,17 @@ const defaultStrategy = {
   is_active: true,
   market: 'KOSPI',
   scan_interval_type: 'eod',
+  scan_universe_limit: 300,
   strategy_config: defaultStrategyConfig,
 };
+
+const scanUniverseOptions = [
+  { value: 120, label: '120' },
+  { value: 200, label: '200' },
+  { value: 300, label: '300' },
+  { value: 500, label: '500' },
+  { value: 0, label: '전체' },
+];
 
 function deepMerge(base, override) {
   if (!override || typeof override !== 'object') return base;
@@ -96,6 +105,9 @@ function deepMerge(base, override) {
 function normalizeInitial(initial) {
   if (!initial) return { ...defaultStrategy };
   const merged = { ...defaultStrategy, ...initial };
+  merged.scan_universe_limit = Number.isFinite(Number(initial.scan_universe_limit))
+    ? Number(initial.scan_universe_limit)
+    : defaultStrategy.scan_universe_limit;
   merged.strategy_config = deepMerge(defaultStrategyConfig, initial.strategy_config || {});
   return merged;
 }
@@ -255,7 +267,7 @@ export default function StrategyForm({ initial, onSubmit, submitLabel, onCancel 
           <textarea value={form.description || ''} onChange={(e) => setValue('description', e.target.value)} rows={3} />
         </div>
 
-        <div className="strategy-fields-grid cols-2" style={{ marginTop: 12 }}>
+        <div className="strategy-fields-grid cols-3" style={{ marginTop: 12 }}>
           <div>
             <label>활성화</label>
             <SwitchControl checked={form.is_active} onChange={(e) => setValue('is_active', e.target.checked)} label={form.is_active ? '사용' : '미사용'} />
@@ -267,6 +279,20 @@ export default function StrategyForm({ initial, onSubmit, submitLabel, onCancel 
               <option value="intraday_5m">intraday_5m</option>
               <option value="intraday_10m">intraday_10m</option>
             </select>
+          </div>
+          <div>
+            <label>스캔 범위</label>
+            <select
+              value={String(form.scan_universe_limit)}
+              onChange={(e) => setValue('scan_universe_limit', Number(e.target.value))}
+            >
+              {scanUniverseOptions.map((option) => (
+                <option key={option.label} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="helper">선택한 범위만큼 상위 종목을 스캔합니다.</p>
           </div>
         </div>
       </section>

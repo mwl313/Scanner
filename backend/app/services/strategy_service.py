@@ -126,6 +126,7 @@ def duplicate_strategy(db: Session, user: User, strategy: Strategy) -> Strategy:
         description=strategy.description,
         is_active=strategy.is_active,
         scan_interval_type=strategy.scan_interval_type,
+        scan_universe_limit=strategy.scan_universe_limit,
         strategy_config=deepcopy(strategy_config),
         **legacy_fields,
     )

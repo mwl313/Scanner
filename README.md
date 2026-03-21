@@ -18,6 +18,7 @@
 - 공통 개념: `enabled`, `mandatory`, `weight`
 - 점수: enabled 항목의 가중치 합 기준으로 정규화(0~100)
 - mandatory 항목 미충족 시 `EXCLUDED`
+- 전략 기본 설정에 `scan_universe_limit`(120/200/300/500/전체[0]) 지원
 - MA 기간은 고정(`5/20/60`), 해석만 설정 가능:
   - `price_vs_ma20`
   - `ma5_vs_ma20`
@@ -120,6 +121,85 @@ npm run dev
 cd backend
 pytest
 ```
+
+## 스캔 성능 벤치마크 (Pre-screen + 단계적 측정)
+코스피 전체 스캔을 바로 확장하기 전에, universe 크기별 처리량을 비교하기 위한 벤치마크 스크립트를 제공합니다.
+
+핵심 포인트:
+- 병렬화 없이 현재 순차 스캔 구조 기준으로 측정
+- pre-screen ON/OFF 비교 지원
+- `universe_limit` 단계별(예: 120/200/300/500) 실행
+- 결과를 Markdown + CSV 리포트로 저장
+- `limit=0`(전체)는 안전 플래그 없으면 실행 차단
+
+실행 예시:
+
+1) 빠른 smoke test (mock):
+```bash
+docker compose exec api python scripts/run_scan_benchmark.py --preset mock-smoke
+```
+
+2) 실제 KIS baseline (pre-screen OFF):
+```bash
+docker compose exec api python scripts/run_scan_benchmark.py \
+  --preset kis-baseline \
+  --strategy-id 1
+```
+
+3) 실제 KIS pre-screen 비교 (pre-screen ON):
+```bash
+docker compose exec api python scripts/run_scan_benchmark.py \
+  --preset kis-prescreen \
+  --strategy-id 1
+```
+
+4) 실제 KIS 스케일링 비교 (ON/OFF 동시):
+```bash
+docker compose exec api python scripts/run_scan_benchmark.py \
+  --preset kis-scaling \
+  --strategy-id 1
+```
+
+5) full universe 가드 실행:
+```bash
+docker compose exec api python scripts/run_scan_benchmark.py \
+  --preset kis-scaling \
+  --strategy-id 1 \
+  --include-full-universe \
+  --allow-full-universe
+```
+
+리포트 출력:
+- 기본 저장 경로: `backend/reports/`
+- 파일 예시:
+  - `scan-benchmark-YYYYMMDD-HHMMSS.md`
+  - `scan-benchmark-YYYYMMDD-HHMMSS.csv`
+
+벤치마크 시 수집 지표(샘플별):
+- start/end time
+- total_elapsed_seconds
+- provider_fetch_elapsed_seconds
+- universe_build_elapsed_seconds
+- scan_loop_elapsed_seconds
+- persistence_elapsed_seconds
+- provider, universe_limit, pre_screen_enabled
+- original universe, pre-screen filtered universe
+- total_scanned / total_matched / failed_count
+- success_rate, scanned/sec, avg sec/stock
+- grade 분포(A/B/C/EXCLUDED), run_status
+
+공정성/신뢰도 강화 포인트:
+- provider universe warmup 1회 수행 후 케이스 실행(초회 캐시 페널티 완화)
+- repeat마다 ON/OFF 순서를 교차해 순서 편향 완화
+- suspicious findings 섹션에서 이상 편차 자동 표시
+
+Pre-screen 동작:
+- 일반 스캔(manual/scheduled)은 전략의 `scan_universe_limit`로 자동 결정
+  - `120/200/300` => pre-screen OFF
+  - `500/전체(0)` => pre-screen ON
+- benchmark는 기존처럼 `universe_limit`/`pre_screen_enabled`를 직접 지정 가능
+- pre-screen ON일 때 universe 준비 단계에서 시가총액 기준 1차 필터 적용
+- 적용 위치: provider `list_stocks()` 직후, 무거운 지표 계산 이전
 
 ## 인증 방식
 - 이메일/비밀번호 회원가입
