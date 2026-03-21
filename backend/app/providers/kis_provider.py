@@ -19,7 +19,7 @@ from app.providers.base import (
     Quote,
     StockMeta,
 )
-from app.utils.datetime_utils import utcnow
+from app.utils.datetime_utils import latest_korean_trading_date, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -563,7 +563,7 @@ class KisMarketDataProvider(MarketDataProvider):
         target_days = max(days, 1)
         daily_map: dict[date, DailyBar] = {}
 
-        cursor_end = datetime.now(self.KST).date()
+        cursor_end = latest_korean_trading_date()
         attempts = 0
         while len(daily_map) < target_days and attempts < 8:
             cursor_start = cursor_end - timedelta(days=220)
@@ -738,7 +738,7 @@ class KisMarketDataProvider(MarketDataProvider):
 
     def get_foreign_net_buy_aggregate(self, stock_code: str, days: int) -> int:
         target_days = max(days, 1)
-        end_date = datetime.now(self.KST).date()
+        end_date = latest_korean_trading_date()
         start_date = end_date - timedelta(days=target_days * 4)
         rows = self.get_foreign_investor_daily_confirmed(stock_code, start_date, end_date)
         ordered_values: list[int] = []

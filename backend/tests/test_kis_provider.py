@@ -1,6 +1,7 @@
 from datetime import date
 
-from app.providers.base import DailyBar, StockMeta
+import app.providers.kis_provider as kis_provider_module
+from app.providers.base import DailyBar, ForeignInvestorDailyConfirmed, StockMeta
 from app.providers.kis_provider import KisMarketDataProvider
 
 
@@ -84,6 +85,40 @@ def test_get_daily_bars_returns_sorted_recent_rows(monkeypatch):
     provider._client.close()
 
 
+def test_get_daily_bars_uses_latest_korean_trading_date(monkeypatch):
+    provider = make_provider()
+    requested_end_dates: list[str] = []
+
+    monkeypatch.setattr(kis_provider_module, 'latest_korean_trading_date', lambda now=None: date(2026, 3, 20))
+
+    def fake_request_json(method, path, tr_id, params=None, retry_on_unauthorized=True):
+        _ = method, path, tr_id, retry_on_unauthorized
+        requested_end_dates.append((params or {}).get('FID_INPUT_DATE_2'))
+        return {
+            'output2': [
+                {
+                    'stck_bsop_date': '20260320',
+                    'stck_oprc': '10100',
+                    'stck_hgpr': '10300',
+                    'stck_lwpr': '10000',
+                    'stck_clpr': '10200',
+                    'acml_vol': '120000',
+                    'acml_tr_pbmn': '1200000000',
+                }
+            ]
+        }
+
+    monkeypatch.setattr(provider, '_request_json', fake_request_json)
+
+    bars = provider.get_daily_bars('005930', 1)
+
+    assert requested_end_dates
+    assert requested_end_dates[0] == '20260320'
+    assert bars[-1].trade_date == date(2026, 3, 20)
+
+    provider._client.close()
+
+
 def test_get_latest_quote_falls_back_to_daily_bar(monkeypatch):
     provider = make_provider()
 
@@ -132,6 +167,50 @@ def test_get_foreign_net_buy_aggregate_uses_recent_days(monkeypatch):
     aggregated = provider.get_foreign_net_buy_aggregate('005930', 2)
 
     assert aggregated == 100
+
+    provider._client.close()
+
+
+def test_get_foreign_net_buy_aggregate_uses_latest_trading_date(monkeypatch):
+    provider = make_provider()
+    captured: dict[str, date] = {}
+
+    monkeypatch.setattr(kis_provider_module, 'latest_korean_trading_date', lambda now=None: date(2026, 3, 20))
+
+    def fake_daily_confirmed(_stock_code, start_date, end_date):
+        captured['start_date'] = start_date
+        captured['end_date'] = end_date
+        return [
+            ForeignInvestorDailyConfirmed(
+                stock_code='005930',
+                trade_date=date(2026, 3, 19),
+                net_buy_value=100,
+                source='kis_investor_daily_confirmed',
+                is_confirmed=True,
+            ),
+            ForeignInvestorDailyConfirmed(
+                stock_code='005930',
+                trade_date=date(2026, 3, 20),
+                net_buy_value=300,
+                source='kis_investor_daily_confirmed',
+                is_confirmed=True,
+            ),
+            ForeignInvestorDailyConfirmed(
+                stock_code='005930',
+                trade_date=date(2026, 3, 18),
+                net_buy_value=-500,
+                source='kis_investor_daily_confirmed',
+                is_confirmed=True,
+            ),
+        ]
+
+    monkeypatch.setattr(provider, 'get_foreign_investor_daily_confirmed', fake_daily_confirmed)
+
+    aggregated = provider.get_foreign_net_buy_aggregate('005930', 2)
+
+    assert captured['end_date'] == date(2026, 3, 20)
+    assert captured['start_date'] < captured['end_date']
+    assert aggregated == 400
 
     provider._client.close()
 
