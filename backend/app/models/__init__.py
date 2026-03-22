@@ -3,6 +3,7 @@ from app.models.notification import Notification
 from app.models.scan_result import ScanResult
 from app.models.scan_run import ScanRun
 from app.models.session import Session
+from app.models.stock_daily_bar import StockDailyBar
 from app.models.strategy import Strategy
 from app.models.trade_journal import TradeJournal
 from app.models.user import User
@@ -15,6 +16,7 @@ __all__ = [
     'ForeignInvestorDaily',
     'ScanRun',
     'ScanResult',
+    'StockDailyBar',
     'WatchlistItem',
     'TradeJournal',
     'Notification',

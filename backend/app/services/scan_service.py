@@ -20,6 +20,7 @@ from app.services.foreign_investor_service import (
     sync_confirmed_foreign_for_codes,
     sync_confirmed_foreign_for_market,
 )
+from app.services.market_history_service import ensure_daily_bars_cached
 from app.services.strategy_schema_service import normalize_strategy_config
 from app.utils.datetime_utils import utcnow
 from app.utils.indicators import bollinger, is_nan, rsi, sma
@@ -549,7 +550,13 @@ def run_scan_with_metrics(
         for stock in targets:
             run.total_scanned += 1
             try:
-                bars = provider.get_daily_bars(stock.code, required_days)
+                bars = ensure_daily_bars_cached(
+                    db,
+                    provider,
+                    stock.code,
+                    required_days,
+                    commit=False,
+                )
                 foreign_data = get_foreign_investor_context(
                     db,
                     provider,

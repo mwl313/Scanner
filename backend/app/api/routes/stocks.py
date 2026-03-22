@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.providers.factory import get_market_data_provider
 from app.schemas.scan import StockDetailOut
+from app.services.market_history_service import ensure_daily_bars_cached
 from app.services.scan_service import get_latest_stock_result
 
 router = APIRouter()
@@ -22,7 +23,7 @@ def stock_detail(
     if not result:
         raise AppError(code='stock_not_found', message='No scan data for stock', status_code=404)
     provider = get_market_data_provider()
-    bars = provider.get_daily_bars(stock_code, 30)
+    bars = ensure_daily_bars_cached(db, provider, stock_code, 30, commit=False)
     recent_closes = [float(bar.close_price) for bar in bars]
     snapshot_value = result.foreign_net_buy_snapshot_value
     snapshot_source = result.foreign_data_source or 'confirmed:unknown|snapshot:unavailable'

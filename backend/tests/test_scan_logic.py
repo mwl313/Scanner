@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from sqlalchemy import select
 
 from app.models.scan_result import ScanResult
@@ -424,3 +426,123 @@ def test_resolve_strategy_scan_execution_options_mapping(db_session):
         options = resolve_strategy_scan_execution_options(strategy)
         assert options.universe_limit == universe_limit
         assert options.pre_screen_enabled is expected_pre_screen
+
+
+def _build_daily_bars(start: date, days: int, base_price: int = 10000):
+    from app.providers.base import DailyBar
+
+    bars = []
+    for idx in range(days):
+        day = start + timedelta(days=idx)
+        close = base_price + idx
+        bars.append(
+            DailyBar(
+                trade_date=day,
+                open_price=close - 1,
+                high_price=close + 2,
+                low_price=close - 2,
+                close_price=close,
+                volume=10000 + idx,
+                trading_value=(10000 + idx) * close,
+            )
+        )
+    return bars
+
+
+def test_scan_engine_reuses_cached_daily_bars_between_runs(db_session, monkeypatch):
+    user = signup_user(db_session, 'scan-cache@example.com', 'password123', 'password123')
+    strategy = Strategy(
+        user_id=user.id,
+        name='scan-cache',
+        description='scan-cache',
+        is_active=True,
+        market='KOSPI',
+        scan_interval_type='eod',
+    )
+    db_session.add(strategy)
+    db_session.commit()
+    db_session.refresh(strategy)
+
+    class TinyProvider:
+        def __init__(self) -> None:
+            self.daily_calls = 0
+
+        def list_stocks(self, market):
+            assert market == 'KOSPI'
+            return [StockMeta(code='111111', name='Cache Stock', market='KOSPI', market_cap=5_000_000_000_000)]
+
+        def get_daily_bars(self, stock_code, days):
+            _ = stock_code
+            self.daily_calls += 1
+            return _build_daily_bars(date(2025, 1, 1), days, base_price=50000)
+
+        def get_latest_quote(self, stock_code):
+            _ = stock_code
+            return None
+
+        def get_foreign_investor_intraday_snapshot(self, stock_code):
+            _ = stock_code
+            return None
+
+        def get_foreign_investor_daily_confirmed(self, stock_code, start_date, end_date):
+            _ = stock_code, start_date, end_date
+            return []
+
+        def get_foreign_net_buy_aggregate(self, stock_code, days):
+            _ = stock_code, days
+            return 0
+
+    monkeypatch.setattr(
+        scan_service,
+        'get_foreign_investor_context',
+        lambda db, provider, stock_code, days, **kwargs: {
+            'confirmed_aggregate_value': 1,
+            'snapshot_value': 1,
+            'status': 'confirmed',
+            'source': 'test',
+            'snapshot_source': 'test',
+            'coverage_days': 3,
+            'required_days': 3,
+        },
+    )
+    monkeypatch.setattr(
+        scan_service,
+        '_evaluate_stock',
+        lambda strategy, strategy_config, stock, bars, foreign_data: {
+            'stock_code': stock.code,
+            'stock_name': stock.name,
+            'market': stock.market,
+            'price': 10000,
+            'ma5': 10000,
+            'ma20': 10000,
+            'ma60': 10000,
+            'bb_upper': 10200,
+            'bb_mid': 10000,
+            'bb_lower': 9800,
+            'rsi': 35,
+            'rsi_signal': 33,
+            'foreign_net_buy_value': 100,
+            'foreign_net_buy_confirmed_value': 100,
+            'foreign_net_buy_snapshot_value': 100,
+            'foreign_data_status': 'confirmed',
+            'foreign_data_source': 'test',
+            'foreign_unavailable_reason': None,
+            'foreign_coverage_days': 3,
+            'foreign_required_days': 3,
+            'trading_value': 10_000_000_000,
+            'score': 85,
+            'grade': 'A',
+            'matched_reasons_json': ['테스트'],
+            'failed_reasons_json': [],
+        },
+    )
+
+    provider = TinyProvider()
+
+    first_run = run_scan(db_session, strategy, 'manual', provider=provider)
+    assert first_run.total_scanned == 1
+    assert provider.daily_calls == 1
+
+    second_run = run_scan(db_session, strategy, 'manual', provider=provider)
+    assert second_run.total_scanned == 1
+    assert provider.daily_calls == 1
