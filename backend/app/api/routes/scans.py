@@ -1,9 +1,15 @@
+import logging
+import threading
+
 from fastapi import APIRouter, Depends, Query, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.exceptions import AppError
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
+from app.models.scan_run import ScanRun
+from app.models.strategy import Strategy
 from app.models.user import User
 from app.schemas.scan import ScanResultOut, ScanRunOut, ScanRunRequest
 from app.services.scan_service import (
@@ -16,17 +22,50 @@ from app.services.scan_service import (
 from app.services.strategy_service import get_strategy_or_404
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
-@router.post('/run', response_model=ScanRunOut)
+def _run_scan_background(strategy_id: int, run_type: str) -> None:
+    db = SessionLocal()
+    try:
+        strategy = db.get(Strategy, strategy_id)
+        if strategy is None:
+            logger.warning('Background scan skipped: strategy not found (strategy_id=%s)', strategy_id)
+            return
+        run_scan(db, strategy, run_type)
+    except Exception as exc:
+        logger.exception('Background manual scan failed (strategy_id=%s): %s', strategy_id, exc)
+    finally:
+        db.close()
+
+
+@router.post('/run', status_code=status.HTTP_202_ACCEPTED, response_class=Response)
 def run_scan_endpoint(
     payload: ScanRunRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> ScanRunOut:
+) -> Response:
     strategy = get_strategy_or_404(db, current_user, payload.strategy_id)
-    run = run_scan(db, strategy, payload.run_type)
-    return ScanRunOut.model_validate(run)
+    existing_running = db.scalar(
+        select(ScanRun)
+        .where(ScanRun.strategy_id == strategy.id, ScanRun.status == 'running')
+        .order_by(ScanRun.started_at.desc())
+    )
+    if existing_running is not None:
+        raise AppError(
+            code='scan_already_running',
+            message='해당 전략의 스캔이 이미 실행 중입니다. 잠시 후 다시 시도해 주세요.',
+            status_code=409,
+        )
+
+    worker = threading.Thread(
+        target=_run_scan_background,
+        args=(strategy.id, payload.run_type),
+        daemon=True,
+        name=f'manual-scan-{strategy.id}',
+    )
+    worker.start()
+    return Response(status_code=status.HTTP_202_ACCEPTED)
 
 
 @router.get('', response_model=list[ScanRunOut])

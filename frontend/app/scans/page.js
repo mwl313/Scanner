@@ -83,6 +83,21 @@ export default function ScansPage() {
   }, [loading, selectedRunId]);
 
   useEffect(() => {
+    if (loading) return undefined;
+    const hasRunningRun = runs.some((item) => item.status === 'running');
+    if (!hasRunningRun) return undefined;
+
+    const interval = window.setInterval(() => {
+      loadBase().catch((err) => setError(err.message));
+      if (selectedRunId) {
+        loadResults().catch((err) => setError(err.message));
+      }
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [loading, runs, selectedRunId]);
+
+  useEffect(() => {
     setSelectedStockCode('');
   }, [selectedRunId]);
 
@@ -95,7 +110,11 @@ export default function ScansPage() {
         method: 'POST',
         body: JSON.stringify({ strategy_id: Number(selectedStrategyId), run_type: 'manual' }),
       });
+      await new Promise((resolve) => setTimeout(resolve, 300));
       await loadBase();
+      if (selectedRunId) {
+        await loadResults();
+      }
     } catch (err) {
       setError(err.message || '수동 스캔 실행에 실패했습니다.');
     } finally {
