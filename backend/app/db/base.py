@@ -4,6 +4,7 @@ from app.models import (  # noqa: F401
     scan_result,
     scan_run,
     session,
+    stock_daily_bar,
     strategy,
     trade_journal,
     user,
