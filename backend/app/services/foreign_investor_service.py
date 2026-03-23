@@ -272,6 +272,26 @@ def get_recent_confirmed_foreign_context(
     )
 
 
+def get_recent_confirmed_foreign_daily_rows(
+    db: Session,
+    stock_code: str,
+    *,
+    days: int = 3,
+) -> list[ForeignInvestorDaily]:
+    target_days = max(int(days), 1)
+    return list(
+        db.scalars(
+            select(ForeignInvestorDaily)
+            .where(
+                ForeignInvestorDaily.stock_code == stock_code,
+                ForeignInvestorDaily.is_confirmed.is_(True),
+            )
+            .order_by(desc(ForeignInvestorDaily.trade_date))
+            .limit(target_days)
+        ).all()
+    )
+
+
 def get_recent_confirmed_foreign_aggregate(
     db: Session,
     stock_code: str,

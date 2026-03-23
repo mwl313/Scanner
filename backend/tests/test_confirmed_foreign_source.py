@@ -155,7 +155,7 @@ def test_krx_connector_normalizes_confirmed_rows(monkeypatch):
 
     class FakeStockModule:
         @staticmethod
-        def get_market_trading_value_by_date(fromdate, todate, ticker, on='순매수'):
+        def get_market_trading_volume_by_date(fromdate, todate, ticker, on='순매수'):
             _ = fromdate, todate, ticker, on
             return FakeFrame()
 

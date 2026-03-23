@@ -157,9 +157,9 @@ def test_get_foreign_net_buy_aggregate_uses_recent_days(monkeypatch):
     def fake_investor_daily(*_args, **_kwargs):
         return {
             'output2': [
-                {'stck_bsop_date': '20260317', 'frgn_ntby_tr_pbmn': '100'},
-                {'stck_bsop_date': '20260319', 'frgn_ntby_tr_pbmn': '300'},
-                {'stck_bsop_date': '20260318', 'frgn_ntby_tr_pbmn': '-200'},
+                {'stck_bsop_date': '20260317', 'frgn_ntby_qty': '100'},
+                {'stck_bsop_date': '20260319', 'frgn_ntby_qty': '300'},
+                {'stck_bsop_date': '20260318', 'frgn_ntby_qty': '-200'},
             ]
         }
 
@@ -216,7 +216,7 @@ def test_get_foreign_net_buy_aggregate_uses_latest_trading_date(monkeypatch):
     provider._client.close()
 
 
-def test_intraday_snapshot_does_not_fallback_to_quantity(monkeypatch):
+def test_intraday_snapshot_uses_quantity(monkeypatch):
     provider = make_provider()
 
     def fake_snapshot(*_args, **_kwargs):
@@ -226,13 +226,13 @@ def test_intraday_snapshot_does_not_fallback_to_quantity(monkeypatch):
 
     snapshot = provider.get_foreign_investor_intraday_snapshot('005930')
 
-    assert snapshot.net_buy_value is None
+    assert snapshot.net_buy_value == 99999
     assert snapshot.is_confirmed is False
 
     provider._client.close()
 
 
-def test_daily_confirmed_does_not_substitute_quantity(monkeypatch):
+def test_daily_confirmed_uses_quantity(monkeypatch):
     provider = make_provider()
 
     def fake_daily(*_args, **_kwargs):
@@ -247,7 +247,7 @@ def test_daily_confirmed_does_not_substitute_quantity(monkeypatch):
     rows = provider.get_foreign_investor_daily_confirmed('005930', date(2026, 3, 19), date(2026, 3, 19))
 
     assert len(rows) == 1
-    assert rows[0].net_buy_value is None
+    assert rows[0].net_buy_value == 12345
     assert rows[0].is_confirmed is True
 
     provider._client.close()

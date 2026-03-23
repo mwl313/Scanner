@@ -694,7 +694,7 @@ class KisMarketDataProvider(MarketDataProvider):
         return Quote(code=stock_code, price=price, trading_value=trading_value)
 
     @staticmethod
-    def _extract_money_value(raw: str | int | float | None) -> int | None:
+    def _extract_signed_int(raw: str | int | float | None) -> int | None:
         if raw is None:
             return None
         text = str(raw).strip()
@@ -736,7 +736,8 @@ class KisMarketDataProvider(MarketDataProvider):
         return ForeignInvestorIntradaySnapshot(
             stock_code=stock_code,
             as_of=utcnow(),
-            net_buy_value=self._extract_money_value(output.get('frgn_ntby_tr_pbmn')),
+            # 외인 동향은 순매수/순매도 "주수" 기준으로 관리한다.
+            net_buy_value=self._extract_signed_int(output.get('frgn_ntby_qty')),
             source='kis_investor_intraday_snapshot',
             is_confirmed=False,
         )
@@ -781,7 +782,8 @@ class KisMarketDataProvider(MarketDataProvider):
             dedup[trade_date] = ForeignInvestorDailyConfirmed(
                 stock_code=stock_code,
                 trade_date=trade_date,
-                net_buy_value=self._extract_money_value(row.get('frgn_ntby_tr_pbmn')),
+                # 외인 확정 동향은 순매수/순매도 "주수" 기준으로 저장한다.
+                net_buy_value=self._extract_signed_int(row.get('frgn_ntby_qty')),
                 source='kis_investor_daily_confirmed',
                 is_confirmed=True,
             )

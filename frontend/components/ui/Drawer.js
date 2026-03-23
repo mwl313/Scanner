@@ -21,10 +21,20 @@ export default function Drawer({ open, onClose, title, children, side = 'right',
 
   useEffect(() => {
     if (!mounted) return undefined;
+    const root = document.documentElement;
+    const previousRootOverflow = root.style.overflow;
+    const previousRootOverscroll = root.style.overscrollBehavior;
     const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
     document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    root.style.overflow = 'hidden';
+    root.style.overscrollBehavior = 'none';
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+      root.style.overflow = previousRootOverflow;
+      root.style.overscrollBehavior = previousRootOverscroll;
     };
   }, [mounted]);
 

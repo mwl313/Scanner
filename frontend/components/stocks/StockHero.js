@@ -1,7 +1,7 @@
 import GradeBadge from '../scans/GradeBadge';
 import ScorePill from '../scans/ScorePill';
 import StatusChip from '../ui/StatusChip';
-import { foreignStatusLabel, formatNumber } from '../../lib/formatters';
+import { foreignStatusLabel, formatForeignValue, formatNumber } from '../../lib/formatters';
 
 export default function StockHero({ detail }) {
   return (
@@ -28,8 +28,8 @@ export default function StockHero({ detail }) {
           <strong>{formatNumber(detail.trading_value)}</strong>
         </div>
         <div>
-          <span className="metric-label">외인 확정합</span>
-          <strong>{formatNumber(detail.foreign_net_buy_confirmed_value)}</strong>
+          <span className="metric-label">외인 동향</span>
+          <strong>{formatForeignValue(detail.foreign_net_buy_confirmed_value)}</strong>
         </div>
         <div>
           <span className="metric-label">외인 상태</span>

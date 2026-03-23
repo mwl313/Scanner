@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ScanRunRequest(BaseModel):
@@ -70,6 +70,11 @@ class ScanResultOut(BaseModel):
     model_config = {'from_attributes': True}
 
 
+class ForeignRecentDailyOut(BaseModel):
+    trade_date: date
+    net_buy_qty: int
+
+
 class StockDetailOut(BaseModel):
     stock_code: str
     stock_name: str
@@ -91,6 +96,7 @@ class StockDetailOut(BaseModel):
     foreign_unavailable_reason: str | None = None
     foreign_coverage_days: int | None = None
     foreign_required_days: int | None = None
+    foreign_recent_daily: list[ForeignRecentDailyOut] = Field(default_factory=list)
     trading_value: int
     score: int
     grade: str

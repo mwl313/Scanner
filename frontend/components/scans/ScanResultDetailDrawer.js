@@ -67,8 +67,22 @@ export default function ScanResultDetailDrawer({ open, onClose, loading, error, 
               <p>RSI / Signal: {Number(detail.rsi).toFixed(2)} / {Number(detail.rsi_signal).toFixed(2)}</p>
               <p>MA5 / MA20 / MA60: {Number(detail.ma5).toFixed(2)} / {Number(detail.ma20).toFixed(2)} / {Number(detail.ma60).toFixed(2)}</p>
               <p>볼린저 하단 거리: {(((Number(detail.price) - Number(detail.bb_lower)) / Number(detail.bb_lower)) * 100).toFixed(2)}%</p>
-              <p>외인 확정합: {formatForeignValue(detail.foreign_net_buy_confirmed_value)}</p>
-              <p>장중 스냅샷: {formatForeignValue(detail.foreign_net_buy_snapshot_value)}</p>
+              <p>외인 동향: {formatForeignValue(detail.foreign_net_buy_confirmed_value)}</p>
+              <p>장중 외인 동향(스냅샷): {formatForeignValue(detail.foreign_net_buy_snapshot_value)}</p>
+              {Array.isArray(detail.foreign_recent_daily) && detail.foreign_recent_daily.length > 0 ? (
+                <div className="detail-foreign-daily">
+                  <p className="metric-label">최근 3일 외인 동향</p>
+                  <ul className="reason-list">
+                    {detail.foreign_recent_daily.map((item) => (
+                      <li key={item.trade_date}>
+                        {item.trade_date}: {formatForeignValue(item.net_buy_qty)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p>최근 3일 외인 동향: -</p>
+              )}
               <p>외인 상태: {foreignStatusLabel(detail)}</p>
             </div>
           </SurfaceCard>

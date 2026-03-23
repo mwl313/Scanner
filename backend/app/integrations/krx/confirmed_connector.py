@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class KrxConfirmedForeignInvestorConnector:
-    """Fetch confirmed daily foreign investor net-buy values from KRX data."""
+    """Fetch confirmed daily foreign investor net-buy quantities from KRX data."""
 
     def __init__(self, base_url: str, timeout_sec: float = 10.0) -> None:
         self.base_url = base_url.rstrip('/')
@@ -80,7 +80,7 @@ class KrxConfirmedForeignInvestorConnector:
 
         try:
             pykrx_stock = self._load_pykrx_stock_module()
-            frame = pykrx_stock.get_market_trading_value_by_date(
+            frame = pykrx_stock.get_market_trading_volume_by_date(
                 fromdate=start_date.strftime('%Y%m%d'),
                 todate=end_date.strftime('%Y%m%d'),
                 ticker=stock_code,
@@ -123,4 +123,3 @@ class KrxConfirmedForeignInvestorConnector:
 
         rows.sort(key=lambda item: item.trade_date)
         return rows
-

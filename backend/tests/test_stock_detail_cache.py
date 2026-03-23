@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, select
 
 from app.api.routes import stocks as stocks_route
+from app.models.foreign_investor_daily import ForeignInvestorDaily
 from app.models.scan_result import ScanResult
 from app.models.scan_run import ScanRun
 from app.models.stock_daily_bar import StockDailyBar
@@ -79,6 +80,31 @@ def _create_scan_result(db_session, user, stock_code: str = '005930', stock_name
         failed_reasons_json=[],
     )
     db_session.add(result)
+    db_session.add_all(
+        [
+            ForeignInvestorDaily(
+                stock_code=stock_code,
+                trade_date=date(2026, 3, 19),
+                net_buy_value=1200,
+                source='test_source',
+                is_confirmed=True,
+            ),
+            ForeignInvestorDaily(
+                stock_code=stock_code,
+                trade_date=date(2026, 3, 20),
+                net_buy_value=-300,
+                source='test_source',
+                is_confirmed=True,
+            ),
+            ForeignInvestorDaily(
+                stock_code=stock_code,
+                trade_date=date(2026, 3, 21),
+                net_buy_value=550,
+                source='test_source',
+                is_confirmed=True,
+            ),
+        ]
+    )
     db_session.commit()
     db_session.refresh(result)
     return result
@@ -120,6 +146,8 @@ def test_stock_detail_reads_recent_closes_from_db_cache_first(db_session, monkey
     assert provider.daily_calls == 0
     assert len(detail.recent_closes) == 30
     assert detail.foreign_net_buy_snapshot_value == 333
+    assert len(detail.foreign_recent_daily) == 3
+    assert detail.foreign_recent_daily[0].net_buy_qty == 550
 
 
 def test_stock_detail_backfills_when_daily_bar_cache_is_insufficient(db_session, monkeypatch):
@@ -157,6 +185,7 @@ def test_stock_detail_backfills_when_daily_bar_cache_is_insufficient(db_session,
 
     assert provider.daily_calls == 1
     assert len(detail.recent_closes) == 30
+    assert len(detail.foreign_recent_daily) == 3
     row_count = db_session.scalar(
         select(func.count()).select_from(StockDailyBar).where(StockDailyBar.stock_code == result.stock_code)
     )

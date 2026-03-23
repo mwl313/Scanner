@@ -32,7 +32,10 @@ export function formatPercent(value, digits = 2) {
 
 export function formatForeignValue(value) {
   if (value === null || value === undefined) return '-';
-  return formatNumber(value);
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return '-';
+  const sign = numeric > 0 ? '+' : '';
+  return `${sign}${formatNumber(numeric)}주`;
 }
 
 export function buildTossInvestUrl(stockCode) {

@@ -1149,6 +1149,7 @@ label {
   inset: 0;
   background: rgba(16, 28, 44, 0.38);
   z-index: 80;
+  overscroll-behavior: none;
 }
 
 .ui-drawer {
@@ -1156,10 +1157,12 @@ label {
   border-left: 1px solid rgba(84, 108, 140, 0.2);
   backdrop-filter: blur(16px);
   height: 100%;
+  max-height: 100vh;
   margin-left: auto;
   box-shadow: var(--shadow-overlay);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .ui-drawer-header {
@@ -1175,8 +1178,14 @@ label {
 }
 
 .ui-drawer-body {
+  flex: 1;
+  min-height: 0;
   padding: var(--space-md);
   overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0px));
 }
 
 .settings-stack {
@@ -1221,6 +1230,14 @@ label {
   display: grid;
   gap: var(--space-xs);
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detail-foreign-daily {
+  grid-column: 1 / -1;
+}
+
+.detail-foreign-daily .reason-list {
+  margin-top: 4px;
 }
 
 .detail-key-grid strong {

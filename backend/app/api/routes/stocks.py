@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.providers.factory import get_market_data_provider
 from app.schemas.scan import StockDetailOut
+from app.services.foreign_investor_service import get_recent_confirmed_foreign_daily_rows
 from app.services.market_history_service import ensure_daily_bars_cached
 from app.services.scan_service import get_latest_stock_result
 
@@ -25,6 +26,14 @@ def stock_detail(
     provider = get_market_data_provider()
     bars = ensure_daily_bars_cached(db, provider, stock_code, 30, commit=False)
     recent_closes = [float(bar.close_price) for bar in bars]
+    recent_foreign_rows = get_recent_confirmed_foreign_daily_rows(db, stock_code, days=3)
+    recent_foreign_daily = [
+        {
+            'trade_date': row.trade_date,
+            'net_buy_qty': int(row.net_buy_value),
+        }
+        for row in recent_foreign_rows
+    ]
     snapshot_value = result.foreign_net_buy_snapshot_value
     snapshot_source = result.foreign_data_source or 'confirmed:unknown|snapshot:unavailable'
     try:
@@ -58,6 +67,7 @@ def stock_detail(
         foreign_unavailable_reason=result.foreign_unavailable_reason,
         foreign_coverage_days=int(result.foreign_coverage_days),
         foreign_required_days=int(result.foreign_required_days),
+        foreign_recent_daily=recent_foreign_daily,
         trading_value=int(result.trading_value),
         score=result.score,
         grade=result.grade,

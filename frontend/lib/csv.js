@@ -29,7 +29,7 @@ export function convertScanResultsToCsv(results) {
     '거래대금',
     'RSI',
     'RSI Signal',
-    '외인 확정합',
+    '외인 동향',
     '장중 스냅샷',
     '긍정 포인트',
   ];

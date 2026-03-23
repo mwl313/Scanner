@@ -75,8 +75,22 @@ export default function StockDetailPage() {
             <p>MA 상태: {maStatus(detail)}</p>
             <p>볼린저 하단: {Number(detail.bb_lower).toFixed(2)}</p>
             <p>현재가-하단 거리: {(((Number(detail.price) - Number(detail.bb_lower)) / Number(detail.bb_lower)) * 100).toFixed(2)}%</p>
-            <p>외인 확정합: {formatForeignValue(detail.foreign_net_buy_confirmed_value)}</p>
+            <p>외인 동향: {formatForeignValue(detail.foreign_net_buy_confirmed_value)}</p>
             <p>외인 장중 스냅샷: {formatForeignValue(detail.foreign_net_buy_snapshot_value)}</p>
+            {(detail.foreign_recent_daily || []).length > 0 ? (
+              <div className="detail-foreign-daily">
+                <p className="metric-label">최근 3일 외인 동향</p>
+                <ul className="reason-list">
+                  {(detail.foreign_recent_daily || []).map((item) => (
+                    <li key={item.trade_date}>
+                      {item.trade_date}: {formatForeignValue(item.net_buy_qty)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p>최근 3일 외인 동향: -</p>
+            )}
             <p>외인 데이터 소스: {detail.foreign_data_source || '-'}</p>
             <p>가격: {formatNumber(detail.price)}</p>
             <p>거래대금: {formatNumber(detail.trading_value)}</p>
