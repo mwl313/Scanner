@@ -546,3 +546,97 @@ def test_scan_engine_reuses_cached_daily_bars_between_runs(db_session, monkeypat
     second_run = run_scan(db_session, strategy, 'manual', provider=provider)
     assert second_run.total_scanned == 1
     assert provider.daily_calls == 1
+
+
+def test_scan_progress_is_committed_mid_loop(db_session, monkeypatch):
+    user = signup_user(db_session, 'scan-progress-midloop@example.com', 'password123', 'password123')
+    strategy = Strategy(
+        user_id=user.id,
+        name='scan-progress-midloop',
+        description='scan-progress-midloop',
+        is_active=True,
+        market='KOSPI',
+        scan_interval_type='eod',
+    )
+    db_session.add(strategy)
+    db_session.commit()
+    db_session.refresh(strategy)
+
+    class TinyProvider:
+        def list_stocks(self, market):
+            assert market == 'KOSPI'
+            return [
+                StockMeta(code=f'{100000 + idx}', name=f'S{idx}', market='KOSPI', market_cap=5_000_000_000_000)
+                for idx in range(25)
+            ]
+
+    monkeypatch.setattr(scan_service, 'sync_confirmed_foreign_for_codes', lambda *args, **kwargs: (0, 0, 25))
+    monkeypatch.setattr(scan_service, 'ensure_daily_bars_cached', lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        scan_service,
+        'get_foreign_investor_context',
+        lambda db, provider, stock_code, days, **kwargs: {
+            'confirmed_aggregate_value': 1,
+            'snapshot_value': 1,
+            'status': 'confirmed',
+            'source': 'test',
+            'snapshot_source': 'test',
+        },
+    )
+    monkeypatch.setattr(
+        scan_service,
+        '_evaluate_stock',
+        lambda strategy, strategy_config, stock, bars, foreign_data: {
+            'stock_code': stock.code,
+            'stock_name': stock.name,
+            'market': stock.market,
+            'price': 10000,
+            'ma5': 10000,
+            'ma20': 10000,
+            'ma60': 10000,
+            'bb_upper': 10200,
+            'bb_mid': 10000,
+            'bb_lower': 9800,
+            'rsi': 35,
+            'rsi_signal': 33,
+            'foreign_net_buy_value': 100,
+            'foreign_net_buy_confirmed_value': 100,
+            'foreign_net_buy_snapshot_value': 100,
+            'foreign_data_status': 'confirmed',
+            'foreign_data_source': 'test',
+            'trading_value': 10_000_000_000,
+            'score': 85,
+            'grade': 'A',
+            'matched_reasons_json': ['테스트'],
+            'failed_reasons_json': [],
+        },
+    )
+
+    original_commit = db_session.commit
+    commit_snapshots: list[tuple[str, int, int]] = []
+
+    def commit_with_snapshot():
+        db_session.flush()
+        latest_run = db_session.scalar(select(ScanRun).order_by(ScanRun.id.desc()))
+        if latest_run is not None:
+            commit_snapshots.append(
+                (str(latest_run.status), int(latest_run.total_scanned), int(latest_run.total_target or 0))
+            )
+        return original_commit()
+
+    monkeypatch.setattr(db_session, 'commit', commit_with_snapshot)
+
+    outcome = run_scan_with_metrics(
+        db_session,
+        strategy,
+        run_type='manual',
+        provider=TinyProvider(),
+        execution_options=ScanExecutionOptions(universe_limit=120, pre_screen_enabled=False),
+    )
+
+    assert outcome.run.total_target == 25
+    assert outcome.run.total_scanned == 25
+    assert any(
+        status == 'running' and scanned > 0 and scanned < target
+        for status, scanned, target in commit_snapshots
+    )

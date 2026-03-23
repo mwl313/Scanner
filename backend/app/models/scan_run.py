@@ -16,6 +16,7 @@ class ScanRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
     total_scanned: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_target: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_matched: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     failed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

@@ -2,7 +2,7 @@ import logging
 import threading
 
 from fastapi import APIRouter, Depends, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -11,9 +11,10 @@ from app.db.session import SessionLocal, get_db
 from app.models.scan_run import ScanRun
 from app.models.strategy import Strategy
 from app.models.user import User
-from app.schemas.scan import ScanResultOut, ScanRunOut, ScanRunRequest
+from app.schemas.scan import ScanProgressOut, ScanResultOut, ScanRunOut, ScanRunRequest
 from app.services.scan_service import (
     delete_scan_run,
+    get_running_scan_progress,
     get_scan_run_or_404,
     list_scan_results,
     list_scan_runs,
@@ -48,13 +49,17 @@ def run_scan_endpoint(
     strategy = get_strategy_or_404(db, current_user, payload.strategy_id)
     existing_running = db.scalar(
         select(ScanRun)
-        .where(ScanRun.strategy_id == strategy.id, ScanRun.status == 'running')
-        .order_by(ScanRun.started_at.desc())
+        .join(Strategy, Strategy.id == ScanRun.strategy_id)
+        .where(
+            Strategy.user_id == current_user.id,
+            ScanRun.status == 'running',
+        )
+        .order_by(desc(ScanRun.started_at))
     )
     if existing_running is not None:
         raise AppError(
             code='scan_already_running',
-            message='해당 전략의 스캔이 이미 실행 중입니다. 잠시 후 다시 시도해 주세요.',
+            message='현재 실행 중인 스캔이 있습니다. 완료 후 다시 시도해 주세요.',
             status_code=409,
         )
 
@@ -70,11 +75,28 @@ def run_scan_endpoint(
 
 @router.get('', response_model=list[ScanRunOut])
 def get_scan_runs(
+    include_running: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[ScanRunOut]:
-    runs = list_scan_runs(db, current_user)
+    runs = list_scan_runs(db, current_user, include_running=include_running)
     return [ScanRunOut.model_validate(item) for item in runs]
+
+
+@router.get('/progress', response_model=ScanProgressOut | None)
+def get_current_scan_progress(
+    strategy_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ScanProgressOut | None:
+    progress = get_running_scan_progress(
+        db,
+        current_user,
+        strategy_id=strategy_id,
+    )
+    if progress is None:
+        return None
+    return ScanProgressOut(**progress.__dict__)
 
 
 @router.get('/{run_id}', response_model=ScanRunOut)

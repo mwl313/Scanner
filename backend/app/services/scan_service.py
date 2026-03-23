@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 import logging
 import math
 import time
@@ -26,6 +27,10 @@ from app.utils.datetime_utils import utcnow
 from app.utils.indicators import bollinger, is_nan, rsi, sma
 
 logger = logging.getLogger(__name__)
+
+COMPLETED_SCAN_STATUSES: tuple[str, ...] = ('completed', 'partial_failed', 'failed')
+SCAN_PROGRESS_COMMIT_EVERY_STOCKS: int = 10
+SCAN_PROGRESS_COMMIT_EVERY_SECONDS: float = 4.0
 
 
 @dataclass(frozen=True)
@@ -61,8 +66,46 @@ class ScanExecutionOutcome:
     metrics: ScanExecutionMetrics
 
 
+@dataclass(frozen=True)
+class ScanProgressSnapshot:
+    run_id: int
+    strategy_id: int
+    run_type: str
+    started_at: datetime
+    status: str
+    total_scanned: int
+    total_target: int
+    total_matched: int
+    failed_count: int
+    progress_pct: float
+
+
 def _normalize_scan_options(execution_options: ScanExecutionOptions | None) -> ScanExecutionOptions:
     return execution_options or ScanExecutionOptions()
+
+
+def _calculate_progress_pct(total_scanned: int, total_target: int) -> float:
+    target = max(int(total_target), 0)
+    scanned = max(int(total_scanned), 0)
+    if target <= 0:
+        return 0.0
+    progress = (scanned / target) * 100.0
+    return round(min(max(progress, 0.0), 100.0), 1)
+
+
+def _build_progress_snapshot(run: ScanRun) -> ScanProgressSnapshot:
+    return ScanProgressSnapshot(
+        run_id=int(run.id),
+        strategy_id=int(run.strategy_id),
+        run_type=str(run.run_type),
+        started_at=run.started_at,
+        status=str(run.status),
+        total_scanned=int(run.total_scanned),
+        total_target=int(run.total_target or 0),
+        total_matched=int(run.total_matched),
+        failed_count=int(run.failed_count),
+        progress_pct=_calculate_progress_pct(run.total_scanned, run.total_target or 0),
+    )
 
 
 def resolve_strategy_scan_execution_options(strategy: Strategy) -> ScanExecutionOptions:
@@ -484,6 +527,7 @@ def run_scan_with_metrics(
         started_at=utcnow(),
         status='running',
         total_scanned=0,
+        total_target=0,
         total_matched=0,
         failed_count=0,
     )
@@ -520,6 +564,11 @@ def run_scan_with_metrics(
                 metrics.pre_screen_min_market_cap,
             )
 
+        run.total_target = len(targets)
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+
         per_stock_sync_if_missing = False
         try:
             sync_scanned, sync_saved, sync_skipped = sync_confirmed_foreign_for_codes(
@@ -547,8 +596,11 @@ def run_scan_with_metrics(
             )
 
         scan_loop_started = time.perf_counter()
+        last_progress_commit_at = time.perf_counter()
+        scanned_since_progress_commit = 0
         for stock in targets:
             run.total_scanned += 1
+            scanned_since_progress_commit += 1
             try:
                 bars = ensure_daily_bars_cached(
                     db,
@@ -574,6 +626,17 @@ def run_scan_with_metrics(
             except Exception as exc:
                 run.failed_count += 1
                 logger.exception('Failed to scan %s (%s): %s', stock.code, stock.name, exc)
+
+            elapsed_since_commit = time.perf_counter() - last_progress_commit_at
+            should_commit_progress = (
+                scanned_since_progress_commit >= SCAN_PROGRESS_COMMIT_EVERY_STOCKS
+                or elapsed_since_commit >= SCAN_PROGRESS_COMMIT_EVERY_SECONDS
+            )
+            if should_commit_progress and run.status == 'running':
+                db.add(run)
+                db.commit()
+                scanned_since_progress_commit = 0
+                last_progress_commit_at = time.perf_counter()
         metrics.scan_loop_elapsed_seconds = time.perf_counter() - scan_loop_started
 
         run.status = 'partial_failed' if run.failed_count > 0 else 'completed'
@@ -617,14 +680,39 @@ def run_scan(
 
 
 
-def list_scan_runs(db: Session, user: User) -> list[ScanRun]:
+def list_scan_runs(db: Session, user: User, *, include_running: bool = False) -> list[ScanRun]:
     stmt = (
         select(ScanRun)
         .join(Strategy, Strategy.id == ScanRun.strategy_id)
         .where(Strategy.user_id == user.id)
         .order_by(desc(ScanRun.started_at))
     )
+    if not include_running:
+        stmt = stmt.where(ScanRun.status.in_(COMPLETED_SCAN_STATUSES))
     return list(db.scalars(stmt).all())
+
+
+def get_running_scan_progress(
+    db: Session,
+    user: User,
+    *,
+    strategy_id: int | None = None,
+) -> ScanProgressSnapshot | None:
+    stmt = (
+        select(ScanRun)
+        .join(Strategy, Strategy.id == ScanRun.strategy_id)
+        .where(
+            Strategy.user_id == user.id,
+            ScanRun.status == 'running',
+        )
+    )
+    if strategy_id is not None:
+        stmt = stmt.where(ScanRun.strategy_id == int(strategy_id))
+    stmt = stmt.order_by(desc(ScanRun.started_at))
+    run = db.scalar(stmt)
+    if run is None:
+        return None
+    return _build_progress_snapshot(run)
 
 
 

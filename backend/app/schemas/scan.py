@@ -16,10 +16,24 @@ class ScanRunOut(BaseModel):
     finished_at: datetime | None
     status: str
     total_scanned: int
+    total_target: int
     total_matched: int
     failed_count: int
 
     model_config = {'from_attributes': True}
+
+
+class ScanProgressOut(BaseModel):
+    run_id: int
+    strategy_id: int
+    run_type: str
+    started_at: datetime
+    status: str
+    total_scanned: int
+    total_target: int
+    total_matched: int
+    failed_count: int
+    progress_pct: float
 
 
 class ScanResultOut(BaseModel):

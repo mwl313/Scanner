@@ -31,7 +31,8 @@ export default function ScansPage() {
   const [detailError, setDetailError] = useState('');
   const [detail, setDetail] = useState(null);
   const [selectedStockCode, setSelectedStockCode] = useState('');
-  const [isRunningScan, setIsRunningScan] = useState(false);
+  const [isSubmittingScan, setIsSubmittingScan] = useState(false);
+  const [runningProgress, setRunningProgress] = useState(null);
 
   const loadBase = async () => {
     const [strategyItems, runItems] = await Promise.all([apiRequest('/api/strategies'), apiRequest('/api/scans')]);
@@ -74,8 +75,15 @@ export default function ScansPage() {
     setResults(data || []);
   };
 
+  const loadRunningProgress = async () => {
+    const data = await apiRequest('/api/scans/progress');
+    setRunningProgress(data || null);
+    return data || null;
+  };
+
   useEffect(() => {
-    if (!loading) loadBase().catch((err) => setError(err.message));
+    if (loading) return;
+    Promise.all([loadBase(), loadRunningProgress()]).catch((err) => setError(err.message));
   }, [loading]);
 
   useEffect(() => {
@@ -84,41 +92,47 @@ export default function ScansPage() {
 
   useEffect(() => {
     if (loading) return undefined;
-    const hasRunningRun = runs.some((item) => item.status === 'running');
-    if (!hasRunningRun) return undefined;
+    if (!runningProgress) return undefined;
 
     const interval = window.setInterval(() => {
-      loadBase().catch((err) => setError(err.message));
-      if (selectedRunId) {
-        loadResults().catch((err) => setError(err.message));
-      }
+      loadRunningProgress()
+        .then((progress) => {
+          if (!progress) {
+            return Promise.all([
+              loadBase(),
+              selectedRunId ? loadResults() : Promise.resolve(),
+            ]);
+          }
+          return null;
+        })
+        .catch((err) => setError(err.message));
     }, 5000);
 
     return () => window.clearInterval(interval);
-  }, [loading, runs, selectedRunId]);
+  }, [loading, runningProgress, selectedRunId]);
 
   useEffect(() => {
     setSelectedStockCode('');
   }, [selectedRunId]);
 
   const runScanNow = async () => {
-    if (!selectedStrategyId || isRunningScan) return;
+    if (!selectedStrategyId || isSubmittingScan || runningProgress) return;
     setError('');
-    setIsRunningScan(true);
+    setIsSubmittingScan(true);
     try {
       await apiRequest('/api/scans/run', {
         method: 'POST',
         body: JSON.stringify({ strategy_id: Number(selectedStrategyId), run_type: 'manual' }),
       });
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await loadBase();
-      if (selectedRunId) {
-        await loadResults();
+      let progress = await loadRunningProgress();
+      if (!progress) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        progress = await loadRunningProgress();
       }
     } catch (err) {
       setError(err.message || '수동 스캔 실행에 실패했습니다.');
     } finally {
-      setIsRunningScan(false);
+      setIsSubmittingScan(false);
     }
   };
 
@@ -223,8 +237,9 @@ export default function ScansPage() {
         canDeleteRun={Boolean(selectedRunId)}
         gradeOptions={GRADE_OPTIONS}
         formatRunLabel={formatScanRunLabel}
-        isRunningScan={isRunningScan}
-        canRunNow={Boolean(selectedStrategyId)}
+        runningProgress={runningProgress}
+        isSubmittingScan={isSubmittingScan}
+        canRunNow={Boolean(selectedStrategyId) && !runningProgress}
       />
 
       {error && <SurfaceCard className="error-block"><p className="error">{error}</p></SurfaceCard>}
