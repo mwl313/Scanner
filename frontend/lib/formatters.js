@@ -101,7 +101,7 @@ export function foreignStatusLabel(item) {
   if (item.foreign_data_status === 'confirmed') {
     return (item.foreign_data_source || '').includes('krx_confirmed_daily') ? '확정(KRX)' : '확정';
   }
-  if (item.foreign_net_buy_snapshot_value !== null && item.foreign_net_buy_snapshot_value !== undefined) {
+  if (item.foreign_net_buy_snapshot_qty !== null && item.foreign_net_buy_snapshot_qty !== undefined) {
     return '미확정(스냅샷)';
   }
   return '없음';

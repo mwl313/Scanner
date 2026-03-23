@@ -52,9 +52,9 @@ class ScanResultOut(BaseModel):
     bb_lower: float
     rsi: float
     rsi_signal: float
-    foreign_net_buy_value: int
-    foreign_net_buy_confirmed_value: int | None = None
-    foreign_net_buy_snapshot_value: int | None = None
+    foreign_net_buy_qty: int
+    foreign_net_buy_confirmed_qty: int | None = None
+    foreign_net_buy_snapshot_qty: int | None = None
     foreign_data_status: str | None = None
     foreign_data_source: str | None = None
     foreign_unavailable_reason: str | None = None
@@ -88,9 +88,9 @@ class StockDetailOut(BaseModel):
     bb_lower: float
     rsi: float
     rsi_signal: float
-    foreign_net_buy_value: int
-    foreign_net_buy_confirmed_value: int | None = None
-    foreign_net_buy_snapshot_value: int | None = None
+    foreign_net_buy_qty: int
+    foreign_net_buy_confirmed_qty: int | None = None
+    foreign_net_buy_snapshot_qty: int | None = None
     foreign_data_status: str | None = None
     foreign_data_source: str | None = None
     foreign_unavailable_reason: str | None = None

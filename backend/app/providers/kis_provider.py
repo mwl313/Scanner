@@ -724,7 +724,7 @@ class KisMarketDataProvider(MarketDataProvider):
             return ForeignInvestorIntradaySnapshot(
                 stock_code,
                 as_of=utcnow(),
-                net_buy_value=None,
+                net_buy_qty=None,
                 source='kis_intraday_snapshot_unavailable',
                 is_confirmed=False,
             )
@@ -737,7 +737,7 @@ class KisMarketDataProvider(MarketDataProvider):
             stock_code=stock_code,
             as_of=utcnow(),
             # 외인 동향은 순매수/순매도 "주수" 기준으로 관리한다.
-            net_buy_value=self._extract_signed_int(output.get('frgn_ntby_qty')),
+            net_buy_qty=self._extract_signed_int(output.get('frgn_ntby_qty')),
             source='kis_investor_intraday_snapshot',
             is_confirmed=False,
         )
@@ -783,7 +783,7 @@ class KisMarketDataProvider(MarketDataProvider):
                 stock_code=stock_code,
                 trade_date=trade_date,
                 # 외인 확정 동향은 순매수/순매도 "주수" 기준으로 저장한다.
-                net_buy_value=self._extract_signed_int(row.get('frgn_ntby_qty')),
+                net_buy_qty=self._extract_signed_int(row.get('frgn_ntby_qty')),
                 source='kis_investor_daily_confirmed',
                 is_confirmed=True,
             )
@@ -796,9 +796,9 @@ class KisMarketDataProvider(MarketDataProvider):
         rows = self.get_foreign_investor_daily_confirmed(stock_code, start_date, end_date)
         ordered_values: list[int] = []
         for item in sorted(rows, key=lambda row: row.trade_date, reverse=True):
-            if item.net_buy_value is None:
+            if item.net_buy_qty is None:
                 continue
-            ordered_values.append(int(item.net_buy_value))
+            ordered_values.append(int(item.net_buy_qty))
             if len(ordered_values) >= target_days:
                 break
 

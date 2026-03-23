@@ -83,7 +83,7 @@ class MockMarketDataProvider(MarketDataProvider):
         return ForeignInvestorIntradaySnapshot(
             stock_code=stock_code,
             as_of=utcnow(),
-            net_buy_value=value,
+            net_buy_qty=value,
             source='mock_intraday_snapshot',
             is_confirmed=False,
         )
@@ -111,7 +111,7 @@ class MockMarketDataProvider(MarketDataProvider):
                     ForeignInvestorDailyConfirmed(
                         stock_code=stock_code,
                         trade_date=cursor,
-                        net_buy_value=value,
+                        net_buy_qty=value,
                         source='mock_daily_confirmed',
                         is_confirmed=True,
                     )
@@ -127,9 +127,9 @@ class MockMarketDataProvider(MarketDataProvider):
         rows_sorted = sorted(rows, key=lambda item: item.trade_date, reverse=True)
         picked_values: list[int] = []
         for item in rows_sorted:
-            if item.net_buy_value is None:
+            if item.net_buy_qty is None:
                 continue
-            picked_values.append(int(item.net_buy_value))
+            picked_values.append(int(item.net_buy_qty))
             if len(picked_values) >= target_days:
                 break
         return int(sum(picked_values))

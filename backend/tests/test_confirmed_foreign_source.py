@@ -49,7 +49,7 @@ class DummyProvider(MarketDataProvider):
         return ForeignInvestorIntradaySnapshot(
             stock_code='000000',
             as_of=datetime.now(),
-            net_buy_value=None,
+            net_buy_qty=None,
             source='dummy',
             is_confirmed=False,
         )
@@ -120,7 +120,7 @@ def test_sync_confirmed_foreign_for_stock_uses_confirmed_source(db_session):
         ForeignInvestorDailyConfirmed(
             stock_code='005930',
             trade_date=date(2026, 3, 19),
-            net_buy_value=12345,
+            net_buy_qty=12345,
             source='krx_confirmed_daily',
             is_confirmed=True,
         )
@@ -165,6 +165,6 @@ def test_krx_connector_normalizes_confirmed_rows(monkeypatch):
 
     assert len(rows) == 2
     assert rows[0].trade_date == date(2026, 3, 18)
-    assert rows[0].net_buy_value == 1234
-    assert rows[1].net_buy_value == -200
+    assert rows[0].net_buy_qty == 1234
+    assert rows[1].net_buy_qty == -200
     assert rows[0].source == 'krx_confirmed_daily'

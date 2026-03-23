@@ -16,6 +16,6 @@ class ForeignInvestorDaily(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     stock_code: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     trade_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    net_buy_value: Mapped[int] = mapped_column(BIGINT, nullable=False)
+    net_buy_qty: Mapped[int] = mapped_column(BIGINT, nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     is_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

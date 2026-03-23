@@ -37,7 +37,7 @@ class ConfirmedForeignSyncOutcome:
 
 @dataclass
 class ConfirmedForeignAggregateContext:
-    aggregate_value: int | None
+    aggregate_qty: int | None
     status: str
     source: str
     coverage_days: int
@@ -102,7 +102,7 @@ def upsert_foreign_investor_daily_rows(
 ) -> int:
     saved = 0
     for row in rows:
-        if row.net_buy_value is None:
+        if row.net_buy_qty is None:
             continue
         existing = db.scalar(
             select(ForeignInvestorDaily).where(
@@ -113,7 +113,7 @@ def upsert_foreign_investor_daily_rows(
             )
         )
         if existing:
-            existing.net_buy_value = int(row.net_buy_value)
+            existing.net_buy_qty = int(row.net_buy_qty)
             existing.source = row.source
             existing.is_confirmed = bool(row.is_confirmed)
             db.add(existing)
@@ -122,7 +122,7 @@ def upsert_foreign_investor_daily_rows(
                 ForeignInvestorDaily(
                     stock_code=row.stock_code,
                     trade_date=row.trade_date,
-                    net_buy_value=int(row.net_buy_value),
+                    net_buy_qty=int(row.net_buy_qty),
                     source=row.source,
                     is_confirmed=bool(row.is_confirmed),
                 )
@@ -187,8 +187,8 @@ def sync_confirmed_foreign_for_stock_with_meta(
             source_label=source.__class__.__name__,
         )
 
-    has_money_value = any(row.net_buy_value is not None for row in rows)
-    if not has_money_value:
+    has_qty_value = any(row.net_buy_qty is not None for row in rows)
+    if not has_qty_value:
         return ConfirmedForeignSyncOutcome(
             saved_rows=0,
             fetched_rows=fetched_rows,
@@ -251,7 +251,7 @@ def get_recent_confirmed_foreign_context(
     latest_row_source = str(rows[0].source) if rows else None
     if coverage_days < required_days:
         return ConfirmedForeignAggregateContext(
-            aggregate_value=None,
+            aggregate_qty=None,
             status='unavailable',
             source='confirmed_daily_unavailable',
             coverage_days=coverage_days,
@@ -260,9 +260,9 @@ def get_recent_confirmed_foreign_context(
             latest_row_source=latest_row_source,
         )
 
-    aggregate = int(sum(int(row.net_buy_value) for row in rows))
+    aggregate = int(sum(int(row.net_buy_qty) for row in rows))
     return ConfirmedForeignAggregateContext(
-        aggregate_value=aggregate,
+        aggregate_qty=aggregate,
         status='confirmed',
         source='confirmed_daily_db',
         coverage_days=coverage_days,
@@ -305,7 +305,7 @@ def get_recent_confirmed_foreign_aggregate(
         days,
         min_required_days=min_required_days,
     )
-    return context.aggregate_value, context.status, context.source
+    return context.aggregate_qty, context.status, context.source
 
 
 def get_foreign_investor_context(
@@ -317,11 +317,11 @@ def get_foreign_investor_context(
     sync_if_missing: bool = False,
     confirmed_source: ConfirmedForeignInvestorSource | None = None,
 ) -> dict:
-    snapshot_value: int | None = None
+    snapshot_qty: int | None = None
     snapshot_source = 'snapshot_unavailable'
     try:
         snapshot: ForeignInvestorIntradaySnapshot = provider.get_foreign_investor_intraday_snapshot(stock_code)
-        snapshot_value = snapshot.net_buy_value
+        snapshot_qty = snapshot.net_buy_qty
         snapshot_source = snapshot.source
     except Exception as exc:
         logger.warning('Failed to fetch intraday snapshot for %s: %s', stock_code, exc)
@@ -351,8 +351,8 @@ def get_foreign_investor_context(
             unavailable_reason = aggregate_context.unavailable_reason or 'unknown'
 
     return {
-        'confirmed_aggregate_value': aggregate_context.aggregate_value,
-        'snapshot_value': snapshot_value,
+        'confirmed_aggregate_qty': aggregate_context.aggregate_qty,
+        'snapshot_qty': snapshot_qty,
         'status': aggregate_context.status,
         'source': aggregate_context.source,
         'confirmed_row_source': aggregate_context.latest_row_source,

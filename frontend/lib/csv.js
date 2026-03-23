@@ -43,8 +43,8 @@ export function convertScanResultsToCsv(results) {
     item.trading_value ?? '',
     item.rsi ?? '',
     item.rsi_signal ?? '',
-    item.foreign_net_buy_confirmed_value ?? '',
-    item.foreign_net_buy_snapshot_value ?? '',
+    item.foreign_net_buy_confirmed_qty ?? '',
+    item.foreign_net_buy_snapshot_qty ?? '',
     item.positive_points ?? '',
   ]);
   return convertRowsToCsv(headers, rows);

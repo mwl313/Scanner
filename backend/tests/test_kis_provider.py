@@ -185,21 +185,21 @@ def test_get_foreign_net_buy_aggregate_uses_latest_trading_date(monkeypatch):
             ForeignInvestorDailyConfirmed(
                 stock_code='005930',
                 trade_date=date(2026, 3, 19),
-                net_buy_value=100,
+                net_buy_qty=100,
                 source='kis_investor_daily_confirmed',
                 is_confirmed=True,
             ),
             ForeignInvestorDailyConfirmed(
                 stock_code='005930',
                 trade_date=date(2026, 3, 20),
-                net_buy_value=300,
+                net_buy_qty=300,
                 source='kis_investor_daily_confirmed',
                 is_confirmed=True,
             ),
             ForeignInvestorDailyConfirmed(
                 stock_code='005930',
                 trade_date=date(2026, 3, 18),
-                net_buy_value=-500,
+                net_buy_qty=-500,
                 source='kis_investor_daily_confirmed',
                 is_confirmed=True,
             ),
@@ -226,7 +226,7 @@ def test_intraday_snapshot_uses_quantity(monkeypatch):
 
     snapshot = provider.get_foreign_investor_intraday_snapshot('005930')
 
-    assert snapshot.net_buy_value == 99999
+    assert snapshot.net_buy_qty == 99999
     assert snapshot.is_confirmed is False
 
     provider._client.close()
@@ -247,7 +247,7 @@ def test_daily_confirmed_uses_quantity(monkeypatch):
     rows = provider.get_foreign_investor_daily_confirmed('005930', date(2026, 3, 19), date(2026, 3, 19))
 
     assert len(rows) == 1
-    assert rows[0].net_buy_value == 12345
+    assert rows[0].net_buy_qty == 12345
     assert rows[0].is_confirmed is True
 
     provider._client.close()

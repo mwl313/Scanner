@@ -115,7 +115,7 @@ class KrxConfirmedForeignInvestorConnector:
                 ForeignInvestorDailyConfirmed(
                     stock_code=stock_code,
                     trade_date=trade_date,
-                    net_buy_value=self._to_int_or_none(row_value),
+                    net_buy_qty=self._to_int_or_none(row_value),
                     source='krx_confirmed_daily',
                     is_confirmed=True,
                 )

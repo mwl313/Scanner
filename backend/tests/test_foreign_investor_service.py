@@ -14,7 +14,7 @@ def test_upsert_foreign_investor_daily_is_idempotent(db_session):
         ForeignInvestorDailyConfirmed(
             stock_code='005930',
             trade_date=date(2026, 3, 18),
-            net_buy_value=100,
+            net_buy_qty=100,
             source='test_source',
             is_confirmed=True,
         )
@@ -28,7 +28,7 @@ def test_upsert_foreign_investor_daily_is_idempotent(db_session):
 
     persisted = db_session.query(ForeignInvestorDaily).filter_by(stock_code='005930').all()
     assert len(persisted) == 1
-    assert persisted[0].net_buy_value == 100
+    assert persisted[0].net_buy_qty == 100
 
 
 def test_recent_confirmed_aggregate_requires_enough_days(db_session):
@@ -36,7 +36,7 @@ def test_recent_confirmed_aggregate_requires_enough_days(db_session):
         ForeignInvestorDailyConfirmed(
             stock_code='000660',
             trade_date=date(2026, 3, 18),
-            net_buy_value=300,
+            net_buy_qty=300,
             source='test_source',
             is_confirmed=True,
         )
@@ -55,21 +55,21 @@ def test_recent_confirmed_aggregate_sums_latest_days(db_session):
         ForeignInvestorDailyConfirmed(
             stock_code='035420',
             trade_date=date(2026, 3, 17),
-            net_buy_value=100,
+            net_buy_qty=100,
             source='test_source',
             is_confirmed=True,
         ),
         ForeignInvestorDailyConfirmed(
             stock_code='035420',
             trade_date=date(2026, 3, 18),
-            net_buy_value=-20,
+            net_buy_qty=-20,
             source='test_source',
             is_confirmed=True,
         ),
         ForeignInvestorDailyConfirmed(
             stock_code='035420',
             trade_date=date(2026, 3, 19),
-            net_buy_value=300,
+            net_buy_qty=300,
             source='test_source',
             is_confirmed=True,
         ),
@@ -88,14 +88,14 @@ def test_recent_confirmed_context_exposes_coverage_days(db_session):
         ForeignInvestorDailyConfirmed(
             stock_code='005930',
             trade_date=date(2026, 3, 19),
-            net_buy_value=100,
+            net_buy_qty=100,
             source='kis_investor_daily_confirmed',
             is_confirmed=True,
         ),
         ForeignInvestorDailyConfirmed(
             stock_code='005930',
             trade_date=date(2026, 3, 20),
-            net_buy_value=200,
+            net_buy_qty=200,
             source='kis_investor_daily_confirmed',
             is_confirmed=True,
         ),

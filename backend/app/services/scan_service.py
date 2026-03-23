@@ -288,8 +288,8 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
     else:
         ma20_vs_ma60_ok = ma20 >= ma60
 
-    foreign_confirmed_value = foreign_data.get('confirmed_aggregate_value')
-    foreign_snapshot_value = foreign_data.get('snapshot_value')
+    foreign_confirmed_qty = foreign_data.get('confirmed_aggregate_qty')
+    foreign_snapshot_qty = foreign_data.get('snapshot_qty')
     foreign_status = str(foreign_data.get('status') or 'unavailable')
     foreign_source = str(foreign_data.get('source') or 'unknown')
     foreign_confirmed_row_source = foreign_data.get('confirmed_row_source')
@@ -299,7 +299,7 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
     foreign_required_days = int(foreign_data.get('required_days') or max(int(foreign_cfg['days']), 1))
     foreign_coverage_label = f'{foreign_coverage_days}/{foreign_required_days}'
     confirmed_source_label = str(foreign_confirmed_row_source or foreign_source)
-    foreign_net_buy_positive = (foreign_confirmed_value is not None) and (foreign_confirmed_value > 0)
+    foreign_net_buy_positive = (foreign_confirmed_qty is not None) and (foreign_confirmed_qty > 0)
 
     min_trading_value = int(trading_value_cfg['min_trading_value'])
     min_market_cap = int(market_cap_cfg['min_market_cap'])
@@ -396,7 +396,7 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
     foreign_policy = str(foreign_cfg.get('unavailable_policy', 'neutral'))
 
     if foreign_enabled:
-        if foreign_confirmed_value is None:
+        if foreign_confirmed_qty is None:
             if foreign_policy == 'neutral':
                 apply_condition(
                     enabled=True,
@@ -477,9 +477,9 @@ def _evaluate_stock(strategy: Strategy, strategy_config: dict, stock: StockMeta,
         'bb_lower': bb_lower,
         'rsi': current_rsi,
         'rsi_signal': current_signal,
-        'foreign_net_buy_value': int(foreign_confirmed_value or 0),
-        'foreign_net_buy_confirmed_value': (int(foreign_confirmed_value) if foreign_confirmed_value is not None else None),
-        'foreign_net_buy_snapshot_value': (int(foreign_snapshot_value) if foreign_snapshot_value is not None else None),
+        'foreign_net_buy_qty': int(foreign_confirmed_qty or 0),
+        'foreign_net_buy_confirmed_qty': (int(foreign_confirmed_qty) if foreign_confirmed_qty is not None else None),
+        'foreign_net_buy_snapshot_qty': (int(foreign_snapshot_qty) if foreign_snapshot_qty is not None else None),
         'foreign_data_status': foreign_status,
         'foreign_data_source': f'confirmed:{confirmed_source_label}|snapshot:{foreign_snapshot_source}',
         'foreign_unavailable_reason': (foreign_unavailable_reason or None),
@@ -736,7 +736,7 @@ def _apply_sort(stmt: Select[tuple[ScanResult]], sort_by: str, sort_order: str) 
         'score': ScanResult.score,
         'trading_value': ScanResult.trading_value,
         'rsi': ScanResult.rsi,
-        'foreign_net_buy': ScanResult.foreign_net_buy_value,
+        'foreign_net_buy': ScanResult.foreign_net_buy_qty,
         'created_at': ScanResult.created_at,
     }
     target = mapping.get(sort_by, ScanResult.score)

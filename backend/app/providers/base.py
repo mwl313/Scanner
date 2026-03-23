@@ -33,7 +33,7 @@ class Quote:
 class ForeignInvestorIntradaySnapshot:
     stock_code: str
     as_of: datetime
-    net_buy_value: int | None
+    net_buy_qty: int | None
     source: str
     is_confirmed: bool = False
 
@@ -42,7 +42,7 @@ class ForeignInvestorIntradaySnapshot:
 class ForeignInvestorDailyConfirmed:
     stock_code: str
     trade_date: date
-    net_buy_value: int | None
+    net_buy_qty: int | None
     source: str
     is_confirmed: bool = True
 

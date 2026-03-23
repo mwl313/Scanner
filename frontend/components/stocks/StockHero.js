@@ -29,7 +29,7 @@ export default function StockHero({ detail }) {
         </div>
         <div>
           <span className="metric-label">외인 동향</span>
-          <strong>{formatForeignValue(detail.foreign_net_buy_confirmed_value)}</strong>
+          <strong>{formatForeignValue(detail.foreign_net_buy_confirmed_qty)}</strong>
         </div>
         <div>
           <span className="metric-label">외인 상태</span>

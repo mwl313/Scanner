@@ -66,9 +66,9 @@ def _create_scan_result(db_session, user, stock_code: str = '005930', stock_name
         bb_lower=68000,
         rsi=37.5,
         rsi_signal=35.2,
-        foreign_net_buy_value=123456789,
-        foreign_net_buy_confirmed_value=123456789,
-        foreign_net_buy_snapshot_value=1111111,
+        foreign_net_buy_qty=123456789,
+        foreign_net_buy_confirmed_qty=123456789,
+        foreign_net_buy_snapshot_qty=1111111,
         foreign_data_status='confirmed',
         foreign_data_source='confirmed:test|snapshot:test',
         foreign_coverage_days=3,
@@ -85,21 +85,21 @@ def _create_scan_result(db_session, user, stock_code: str = '005930', stock_name
             ForeignInvestorDaily(
                 stock_code=stock_code,
                 trade_date=date(2026, 3, 19),
-                net_buy_value=1200,
+                net_buy_qty=1200,
                 source='test_source',
                 is_confirmed=True,
             ),
             ForeignInvestorDaily(
                 stock_code=stock_code,
                 trade_date=date(2026, 3, 20),
-                net_buy_value=-300,
+                net_buy_qty=-300,
                 source='test_source',
                 is_confirmed=True,
             ),
             ForeignInvestorDaily(
                 stock_code=stock_code,
                 trade_date=date(2026, 3, 21),
-                net_buy_value=550,
+                net_buy_qty=550,
                 source='test_source',
                 is_confirmed=True,
             ),
@@ -133,7 +133,7 @@ def test_stock_detail_reads_recent_closes_from_db_cache_first(db_session, monkey
             return ForeignInvestorIntradaySnapshot(
                 stock_code=stock_code,
                 as_of=utcnow(),
-                net_buy_value=333,
+                net_buy_qty=333,
                 source='test_intraday_snapshot',
                 is_confirmed=False,
             )
@@ -145,7 +145,7 @@ def test_stock_detail_reads_recent_closes_from_db_cache_first(db_session, monkey
 
     assert provider.daily_calls == 0
     assert len(detail.recent_closes) == 30
-    assert detail.foreign_net_buy_snapshot_value == 333
+    assert detail.foreign_net_buy_snapshot_qty == 333
     assert len(detail.foreign_recent_daily) == 3
     assert detail.foreign_recent_daily[0].net_buy_qty == 550
 
@@ -173,7 +173,7 @@ def test_stock_detail_backfills_when_daily_bar_cache_is_insufficient(db_session,
             return ForeignInvestorIntradaySnapshot(
                 stock_code=stock_code,
                 as_of=utcnow(),
-                net_buy_value=555,
+                net_buy_qty=555,
                 source='test_intraday_snapshot',
                 is_confirmed=False,
             )

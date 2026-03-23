@@ -30,15 +30,15 @@ def stock_detail(
     recent_foreign_daily = [
         {
             'trade_date': row.trade_date,
-            'net_buy_qty': int(row.net_buy_value),
+            'net_buy_qty': int(row.net_buy_qty),
         }
         for row in recent_foreign_rows
     ]
-    snapshot_value = result.foreign_net_buy_snapshot_value
+    snapshot_qty = result.foreign_net_buy_snapshot_qty
     snapshot_source = result.foreign_data_source or 'confirmed:unknown|snapshot:unavailable'
     try:
         snapshot = provider.get_foreign_investor_intraday_snapshot(stock_code)
-        snapshot_value = snapshot.net_buy_value
+        snapshot_qty = snapshot.net_buy_qty
         confirmed_part = snapshot_source.split('|snapshot:')[0] if '|snapshot:' in snapshot_source else snapshot_source
         snapshot_source = f'{confirmed_part}|snapshot:{snapshot.source}'
     except Exception:
@@ -57,11 +57,11 @@ def stock_detail(
         bb_lower=float(result.bb_lower),
         rsi=float(result.rsi),
         rsi_signal=float(result.rsi_signal),
-        foreign_net_buy_value=int(result.foreign_net_buy_value),
-        foreign_net_buy_confirmed_value=(
-            int(result.foreign_net_buy_confirmed_value) if result.foreign_net_buy_confirmed_value is not None else None
+        foreign_net_buy_qty=int(result.foreign_net_buy_qty),
+        foreign_net_buy_confirmed_qty=(
+            int(result.foreign_net_buy_confirmed_qty) if result.foreign_net_buy_confirmed_qty is not None else None
         ),
-        foreign_net_buy_snapshot_value=(int(snapshot_value) if snapshot_value is not None else None),
+        foreign_net_buy_snapshot_qty=(int(snapshot_qty) if snapshot_qty is not None else None),
         foreign_data_status=result.foreign_data_status or 'unavailable',
         foreign_data_source=snapshot_source,
         foreign_unavailable_reason=result.foreign_unavailable_reason,
@@ -99,12 +99,12 @@ def stock_indicators(
         'bb_lower': float(result.bb_lower),
         'rsi': float(result.rsi),
         'rsi_signal': float(result.rsi_signal),
-        'foreign_net_buy_value': int(result.foreign_net_buy_value),
-        'foreign_net_buy_confirmed_value': (
-            int(result.foreign_net_buy_confirmed_value) if result.foreign_net_buy_confirmed_value is not None else None
+        'foreign_net_buy_qty': int(result.foreign_net_buy_qty),
+        'foreign_net_buy_confirmed_qty': (
+            int(result.foreign_net_buy_confirmed_qty) if result.foreign_net_buy_confirmed_qty is not None else None
         ),
-        'foreign_net_buy_snapshot_value': (
-            int(result.foreign_net_buy_snapshot_value) if result.foreign_net_buy_snapshot_value is not None else None
+        'foreign_net_buy_snapshot_qty': (
+            int(result.foreign_net_buy_snapshot_qty) if result.foreign_net_buy_snapshot_qty is not None else None
         ),
         'foreign_data_status': result.foreign_data_status or 'unavailable',
         'foreign_data_source': result.foreign_data_source,

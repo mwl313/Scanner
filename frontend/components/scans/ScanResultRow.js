@@ -25,7 +25,7 @@ export default function ScanResultRow({ item, positivePoints, onOpenDetail, sele
         </div>
         <div className="scan-row-key-item">
           <span className="metric-label">외인 동향</span>
-          <strong>{formatForeignValue(item.foreign_net_buy_confirmed_value)}</strong>
+          <strong>{formatForeignValue(item.foreign_net_buy_confirmed_qty)}</strong>
         </div>
       </div>
 
